@@ -76,15 +76,58 @@ sub poco_dns_resolve {
   my ($kernel, $heap, $sender, $response, $request, $type, $class) =
     @_[KERNEL, HEAP, SENDER, ARG0, ARG1, ARG2, ARG3];
 
-  # Send the request.
-  my $resolver_socket =
-    $heap->{resolver}->bgsend($request, $type, $class);
+  # Parse user args from the magical $response format.
 
   my @user_args;
   if (ref $response eq "ARRAY") {
 	  @user_args = @{ $response };
 	  $response = shift @user_args;
   }
+
+  # If it's an IN type A request, check /etc/hosts.  -><- This is not
+  # always the right thing to do, but it's more right more often than
+  # never checking at all.
+
+  if ($type eq "A" and $class eq "IN") {
+    if (open(HOST, "</etc/hosts")) {
+      while (<HOST>) {
+        next if /^\s*\#/;
+        s/^\s*//;
+        chomp;
+        my ($address, @aliases) = split;
+        next unless grep /^\Q$request\E$/i, @aliases;
+        close HOST;
+
+        # Build a postback even though we're posting a response right
+        # away.  This ensures it's the proper format.
+        my $postback =
+          $sender->postback($response, $request, $type, $class, @user_args);
+
+        # Build a fake Net::DNS response packet.  Essentially
+        # pretending we went through a name server.
+        my $packet = Net::DNS::Packet->new($address, "A", "IN");
+        $packet->push(
+          "answer",
+          Net::DNS::RR->new(
+            Name => $request,
+            TTL  => 1,
+            Class => $class,
+            Type  => $type,
+            Address => $address,
+          )
+        );
+
+        # Send the packet back, and return without doing all the work.
+        $postback->($packet, "");
+        return;
+      }
+      close HOST;
+    }
+  }
+
+  # Send the request.
+  my $resolver_socket =
+    $heap->{resolver}->bgsend($request, $type, $class);
 
   # Create a postback.  This will keep the sender session alive until
   # we're done with the request.
