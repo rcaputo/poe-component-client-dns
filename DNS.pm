@@ -6,7 +6,7 @@ package POE::Component::Client::DNS;
 use strict;
 
 use vars qw($VERSION);
-$VERSION = '0.92';
+$VERSION = '0.93';
 
 use Carp qw(croak);
 
@@ -73,17 +73,17 @@ sub poco_dns_start {
 # alive until a response is received.
 
 sub poco_dns_resolve {
-  my ($kernel, $heap, $sender, $response, $request, @types) =
-    @_[KERNEL, HEAP, SENDER, ARG0, ARG1, ARG2];
+  my ($kernel, $heap, $sender, $response, $request, $type, $class) =
+    @_[KERNEL, HEAP, SENDER, ARG0, ARG1, ARG2, ARG3];
 
   # Send the request.
   my $resolver_socket =
-    $heap->{resolver}->bgsend($request, @types);
+    $heap->{resolver}->bgsend($request, $type, $class);
 
   # Create a postback.  This will keep the sender session alive until
   # we're done with the request.
   $heap->{postback}->{$resolver_socket} =
-    $sender->postback($response, $request, @types);
+    $sender->postback($response, $request, $type, $class);
 
   # Set the time we'll wait for a response.
   $kernel->delay($resolver_socket, $heap->{timeout});
@@ -167,7 +167,7 @@ POE::Component::Client::DNS - a DNS client component
                  'resolve',   # post to named's 'resolve' state
                  'postback',  # which of our states will receive responses
                  $address,    # the address to resolve
-                 'A', 'PTR'   # the record types we're interested in
+                 'A', 'IN'    # the record type and class to return
                );
 
   # This is the sub which is called when the session receives a
@@ -251,7 +251,7 @@ and a reference to a list of record types to return.  For example:
   $kernel->post( 'resolver', 'resolve', # resolver session alias & state
                  'got_response',        # my state to receive responses
                  'poe.perl.org',        # look up poe.perl.org
-                 'ANY'                  # return any records found
+                 'ANY'                  # return any IN records found
                );
 
 Requests include the state to which responses will be posted.  In the
