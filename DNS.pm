@@ -109,9 +109,9 @@ sub poco_dns_default {
     $postback->(undef, 'timeout');
   }
 
-  # Return 1 in case we've caught a signal.  We'll handle them all,
-  # which will keep us alive until all our clients are gone.
-  return 1;
+  # Be sure not to handle signals.  This will let some other part of
+  # the program decide whether we're to go away.
+  return 0;
 }
 
 # A resolver query generated a response.  Post the reply back.
@@ -130,12 +130,10 @@ sub poco_dns_response {
   # Set the packet's answerfrom field, if the packet was received ok
   # and an answerfrom isn't already included.
   if (defined $packet and !defined $packet->answerfrom) {
-    $packet->answerfrom
-      ( inet_ntoa( (unpack_sockaddr_in( getpeername($resolver_socket)
-                                      )
-                   )[1]
-                 )
-      );
+    my $answerfrom = getpeername($resolver_socket);
+    $answerfrom = (unpack_sockaddr_in($answerfrom))[1] if defined $answerfrom;
+    $answerfrom = inet_ntoa($answerfrom) if defined $answerfrom;
+    $packet->answerfrom($answerfrom) if defined $answerfrom;
   }
 
   # Retrieve the postback for this request.
