@@ -6,7 +6,7 @@
 use strict;
 use POE qw(Component::Client::DNS);
 
-use Test::More tests => 5;
+use Test::More tests => 9;
 
 # Avoid a warning.
 POE::Kernel->run();
@@ -29,7 +29,7 @@ test_err(
   "POE::Component::Client::DNS doesn't know these parameters: moo"
 );
 
-POE::Component::Client::DNS->spawn();
+my $resolver = POE::Component::Client::DNS->spawn();
 
 eval {
   $poe_kernel->call(
@@ -57,3 +57,28 @@ eval {
   );
 };
 test_err($@, "Must include a 'host' in Client::DNS request");
+
+eval {
+  $resolver->resolve(1);
+};
+test_err($@, "resolve() needs an even number of parameters");
+
+eval {
+  $resolver->resolve();
+};
+test_err($@, "resolve() must include an 'event'");
+
+eval {
+  $resolver->resolve(
+    event => "moo",
+  );
+};
+test_err($@, "resolve() must include a 'context'");
+
+eval {
+  $resolver->resolve(
+    event   => "moo",
+    context => "bar",
+  );
+};
+test_err($@, "resolve() must include a 'host'");
