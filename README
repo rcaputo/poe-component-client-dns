@@ -12,6 +12,10 @@ questions, and it emits events carrying Net::DNS::Packet responses.
 Requirements
 ------------
 
+POE::Component::Client::DNS requires a functioning name server.
+Transient network problems (or testing the module from a disconnected
+machine) may cause it to fail.
+
 This module requires POE and Net::DNS.  Installing it with the CPAN
 shell should cause it to do the right thing with regards to these
 dependencies.
