@@ -281,12 +281,13 @@ POE::Component::Client::DNS - a DNS client component
     Nameservers => [ localhost ], # defaults per Net::DNS
   );
 
-  $kernel->post('named',     # posts to the 'named' alias
-                'resolve',   # post to named's 'resolve' state
-                'postback',  # which of our states will receive responses
-                $address,    # the address to resolve
-                'A', 'IN'    # the record type and class to return
-               );
+  $kernel->post(
+    'named',     # posts to the 'named' alias
+    'resolve',   # post to named's 'resolve' state
+    'postback',  # which of our states will receive responses
+    $address,    # the address to resolve
+    'A', 'IN'    # the record type and class to return
+  );
 
   # Or
 
@@ -300,11 +301,11 @@ POE::Component::Client::DNS - a DNS client component
   # This is the sub which is called when the session receives a
   # 'postback' event.
   sub postback_handler {
-    my (@original_request_parameters) = @{$_[ARG0]}[0..2];
-    my (@postback_parameters) = @{$_[ARG0]}[3..$#_[ARG0]];
+    my (
+      $request_address, $request_type, $request_class,
+      @postback_parameters
+    ) = @{$_[ARG0]};
     my ($net_dns_packet, $net_dns_errorstring) = @{$_[ARG1]};
-
-    my $request_address = $original_request_parameters[0];
 
     unless (defined $net_dns_packet) {
       print "$request_address: error ($net_dns_errorstring)\n";
