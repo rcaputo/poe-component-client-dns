@@ -6,7 +6,7 @@ package POE::Component::Client::DNS;
 use strict;
 
 use vars qw($VERSION);
-$VERSION = '0.97';
+$VERSION = '0.98';
 
 use Carp qw(croak);
 
@@ -574,28 +574,30 @@ objects.
 
 This component does not yet expose the full power of Net::DNS.
 
-Timeouts have not been tested extensively.
+Timeouts have not been tested extensively.  Please contact the author
+if you know of a reliable way to test DNS timeouts.
 
 =head1 DEPRECATIONS
 
 The older, list-based interfaces are no longer documented as of
-version 0.98.  They are being phased out.  The hash-based interface,
-first documented in version 0.98, will replace the deprecated
-interfaces after a suitable phase-out period.
+version 0.98.  They are being phased out.  The method-based interface,
+first implementedin version 0.98, will replace the deprecated
+interfaces after a six-month phase-out period.
 
 Version 0.98 was released in October of 2004.  The deprecated
-interfaces will be supported until January 2005.
+interfaces will continue to work without warnings until January 2005.
 
 As of January 2005, programs that use the deprecated interfaces will
-encounter mandatory warnings.  Those warnings will persist until April
-2005.
+continue to work, but they will generate mandatory warnings.  Those
+warnings will persist until April 2005.
 
 As of April 2005 the mandatory warnings will be upgraded to mandatory
-errors.  Support for the deprecated interfaces will be removed.
+errors.  Support for the deprecated interfaces will be removed
+entirely.
 
 =head1 AUTHOR & COPYRIGHTS
 
-POE::Component::Client::DNS is Copyright 1999-2005 by Rocco Caputo.
+POE::Component::Client::DNS is Copyright 1999-2004 by Rocco Caputo.
 All rights are reserved.  POE::Component::Client::DNS is free
 software; you may redistribute it and/or modify it under the same
 terms as Perl itself.
