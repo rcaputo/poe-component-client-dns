@@ -12,7 +12,12 @@ use Carp qw(croak);
 
 use Socket qw(unpack_sockaddr_in inet_ntoa);
 use Net::DNS;
-use POE::Session;
+use POE;
+
+# Keep track of requests for each response socket.  Used to pass data
+# around select_read().
+
+my %req_by_socket;
 
 # Spawn a new PoCo::Client::DNS session.  This basically is a
 # constructor, but it isn't named "new" because it doesn't create a
@@ -20,16 +25,14 @@ use POE::Session;
 
 sub spawn {
   my $type = shift;
-
   croak "$type requires an even number of parameters" if @_ % 2;
-
   my %params = @_;
 
   my $alias = delete $params{Alias};
-  $alias = 'resolver' unless defined $alias and length $alias;
+  $alias = 'resolver' unless $alias;
 
   my $timeout = delete $params{Timeout};
-  $timeout = 90 unless defined $timeout and $timeout >= 0;
+  $timeout = 90 unless $timeout;
 
   my $nameservers = delete $params{Nameservers};
 
@@ -39,8 +42,8 @@ sub spawn {
 
   POE::Session->create(
     inline_states => {
-      _start           => \&poco_dns_start,
       _default         => \&poco_dns_default,
+      _start           => \&poco_dns_start,
       got_dns_response => \&poco_dns_response,
       resolve          => \&poco_dns_resolve,
       send_request     => \&poco_dns_do_request,
@@ -60,7 +63,6 @@ sub poco_dns_start {
     @_[KERNEL, HEAP, ARG0, ARG1, ARG2];
 
   $heap->{resolver} = Net::DNS::Resolver->new();
-  $heap->{postback} = { };
   $heap->{timeout}  = $timeout;
 
   # Set the list of nameservers, if one was supplied.
@@ -70,24 +72,66 @@ sub poco_dns_start {
   $kernel->alias_set($alias);
 }
 
-# Receive a request.  This uses postbacks to keep the client session
-# alive until a response is received.
+# Receive a request.  This uses extra reference counts to keep the
+# client sessions alive until responses are ready.
 
 sub poco_dns_resolve {
-  my ($kernel, $heap, $sender, $response, $request, $type, $class) =
+  my ($kernel, $heap, $sender, $event, $host, $type, $class) =
     @_[KERNEL, HEAP, SENDER, ARG0, ARG1, ARG2, ARG3];
 
-  # Parse user args from the magical $response format.
+  my $debug_info =
+    "in Client::DNS request at $_[CALLER_FILE] line $_[CALLER_LINE]\n";
 
-  my @user_args;
-  if (ref $response eq "ARRAY") {
-    @user_args = @{ $response };
-    $response = shift @user_args;
+  my ($api_version, $context, $timeout);
+
+  # Version 3 API.  Pass the entire request as a hash.
+  if (ref($event) eq 'HASH') {
+    my %args = %$event;
+
+    $type = delete $args{type};
+    $type = "A" unless $type;
+
+    $class = delete $args{class};
+    $class = "IN" unless $class;
+
+    $event = delete $args{event};
+    die "Must include an 'event' $debug_info" unless $event;
+
+    $context = delete $args{context};
+    die "Must include a 'context' $debug_info" unless $context;
+
+    $timeout = delete $args{timeout};
+
+    $host = delete $args{host};
+    die "Must include a 'host' $debug_info" unless $host;
+
+    $api_version = 3;
   }
 
-  # If it's an IN type A request, check /etc/hosts.  -><- This is not
-  # always the right thing to do, but it's more right more often than
-  # never checking at all.
+  # Parse user args from the magical $response format.  Version 2 API.
+
+  elsif (ref($event) eq "ARRAY") {
+    $context     = $event;
+    $event       = shift @$context;
+    $api_version = 2;
+  }
+
+  # Whee.  Version 1 API.
+
+  else {
+    $context     = [ ];
+    $api_version = 1;
+  }
+
+  # Default the request's timeout.
+  $timeout = $heap->{timeout} unless $timeout;
+
+  # Set an extra reference on the sender so it doesn't go away.
+  $kernel->refcount_increment($sender->ID, __PACKAGE__);
+
+  # If it's an IN type A request, check /etc/hosts.
+  # -><- This is not always the right thing to do, but it's more right
+  # more often than never checking at all.
 
   if ($type eq "A" and $class eq "IN") {
     if (open(HOST, "</etc/hosts")) {
@@ -96,21 +140,16 @@ sub poco_dns_resolve {
         s/^\s*//;
         chomp;
         my ($address, @aliases) = split;
-        next unless grep /^\Q$request\E$/i, @aliases;
+        next unless grep /^\Q$host\E$/i, @aliases;
         close HOST;
 
-        # Build a postback even though we're posting a response right
-        # away.  This ensures it's the proper format.
-        my $postback =
-          $sender->postback($response, $request, $type, $class, @user_args);
+        # Pretend the request went through a name server.
 
-        # Build a fake Net::DNS response packet.  Essentially
-        # pretending we went through a name server.
         my $packet = Net::DNS::Packet->new($address, "A", "IN");
         $packet->push(
           "answer",
           Net::DNS::RR->new(
-            Name    => $request,
+            Name    => $host,
             TTL     => 1,
             Class   => $class,
             Type    => $type,
@@ -118,8 +157,21 @@ sub poco_dns_resolve {
           )
         );
 
-        # Send the packet back, and return without doing all the work.
-        $postback->($packet, "");
+        # Send the response immediately, and return.
+
+        _send_response(
+          api_ver  => $api_version,
+          sender   => $sender,
+          event    => $event,
+          host     => $host,
+          type     => $type,
+          class    => $class,
+          context  => $context,
+          response => $packet,
+          error    => "",
+        );
+
+        close HOST;
         return;
       }
       close HOST;
@@ -134,19 +186,16 @@ sub poco_dns_resolve {
   $kernel->yield(
     send_request => {
       sender    => $sender,
-      response  => $response,
-      request   => $request,
+      event     => $event,
+      host      => $host,
       type      => $type,
       class     => $class,
-      user_args => \@user_args,
+      context   => $context,
       started   => $now,
-      ends      => $now + $heap->{timeout},
-      timeout   => $heap->{timeout},
+      ends      => $now + $timeout,
+      api_ver   => $api_version,
     }
   );
-
-  # Set an extra reference on the sender so it doesn't go away yet.
-  $kernel->refcount_increment($sender->ID, __PACKAGE__);
 }
 
 # Perform the real request.  May recurse to perform retries.
@@ -154,101 +203,88 @@ sub poco_dns_resolve {
 sub poco_dns_do_request {
   my ($kernel, $heap, $req) = @_[KERNEL, HEAP, ARG0];
 
+  # Did the request time out?
+  my $remaining = $req->{ends} - time();
+  if ($remaining <= 0) {
+    _send_response(
+      %$req,
+      response => undef,
+      error    => "timeout",
+    );
+    return;
+  }
+
   # Send the request.
   my $resolver_socket = $heap->{resolver}->bgsend(
-    $req->{request},
+    $req->{host},
     $req->{type},
     $req->{class}
   );
 
-  # The request failed?  Retry?
+  # The request failed?  Attempt to retry.
+
   unless ($resolver_socket) {
-    # Reduce the remaining timeout, and test whether we're beyond our
-    # limit already.
-    if ( (--$req->{timeout} < 0) or (time() > $req->{ends}) ) {
-      # Simulate a postback for the timeout.
-      $kernel->post(
-        $req->{session}, $req->{response},
-        [ $req->{request}, $req->{type}, $req->{class}, @{$req->{user_args}}, ],
-        [ undef, 'timeout', ]
-      );
-
-      # Let the client session go.
-      $kernel->refcount_decrement($req->{sender}->ID, __PACKAGE__);
-
-      return;
-    }
-
-    # We still have time on the meter.  Go around again, with a
-    # slightly reduced timeout.
-    $kernel->delay_add(send_request => 1, $req);
+    $remaining = 1 if $remaining > 1;
+    $kernel->delay_add(send_request => $remaining, $req);
     return;
   }
 
-  # We have a resolver socket!  Let's use it.
+  # Set a timeout for the request, and watch the response socket for
+  # activity.
 
-  # Create a postback.  This will keep the sender session alive until
-  # we're done with the request.
-  $heap->{postback}->{$resolver_socket} = $req->{sender}->postback(
-    $req->{response},
-    $req->{request},
-    $req->{type},
-    $req->{class},
-    @{$req->{user_args}}
-  );
+  $req_by_socket{$resolver_socket} = $req;
 
-  # Let the client session go.  The postback will take care of it.
-  $kernel->refcount_decrement($req->{sender}->ID, __PACKAGE__);
-
-  # Set the time we'll wait for a response.  This uses whatever time
-  # is left on the request.
-  $kernel->delay($resolver_socket, $req->{timeout});
-
-  # Watch the response socket for activity.
+  $kernel->delay($resolver_socket, $remaining, $resolver_socket);
   $kernel->select_read($resolver_socket, 'got_dns_response');
 }
 
 # A resolver query timed out.  Post an error back.
 
 sub poco_dns_default {
-  my ($kernel, $heap, $resolver_socket) = @_[KERNEL, HEAP, ARG0];
+  my ($kernel, $heap, $event, $args) = @_[KERNEL, HEAP, ARG0, ARG1];
+  my $socket = $args->[0];
 
-  # Retrieve the postback registered for this request.  If it doesn't
-  # exist, then this probably is some other sort of event.
-  my $postback = delete $heap->{postback}->{$resolver_socket};
-  if (defined $postback) {
+  return unless defined($socket) and $event eq $socket;
 
-    # Stop watching the socket.  The timeout for this request is
-    $kernel->select_read($resolver_socket);
+  my $req = delete $req_by_socket{$socket};
+  return unless $req;
 
-    # Post back an undefined response, indicating we timed out.
-    $postback->(undef, 'timeout');
-  }
+  # Stop watching the socket.
+  $kernel->select_read($socket);
 
-  # Be sure not to handle signals.  This will let some other part of
-  # the program decide whether we're to go away.
-  return 0;
+  # Post back an undefined response, indicating we timed out.
+  _send_response(
+    %$req,
+    response => undef,
+    error    => "timeout",
+  );
+
+  # Don't accidentally handle signals.
+  return;
 }
 
 # A resolver query generated a response.  Post the reply back.
 
 sub poco_dns_response {
-  my ($kernel, $heap, $resolver_socket) = @_[KERNEL, HEAP, ARG0];
+  my ($kernel, $heap, $socket) = @_[KERNEL, HEAP, ARG0];
+
+  my $req = delete $req_by_socket{$socket};
+  return unless $req;
 
   # Turn off the timeout for this request, and stop watching the
   # resolver connection.
-  $kernel->delay($resolver_socket);
-  $kernel->select_read($resolver_socket);
+  $kernel->delay($socket);
+  $kernel->select_read($socket);
 
   # Read the DNS response.
-  my $packet = $heap->{resolver}->bgread($resolver_socket);
+  my $packet = $heap->{resolver}->bgread($socket);
 
   # Set the packet's answerfrom field, if the packet was received ok
   # and an answerfrom isn't already included.  This uses the
   # documented peerhost() method
 
   if (defined $packet and !defined $packet->answerfrom) {
-    my $answerfrom = getpeername($resolver_socket);
+    my $answerfrom = getpeername($socket);
     if (defined $answerfrom) {
       $answerfrom = (unpack_sockaddr_in($answerfrom))[1];
       $answerfrom = inet_ntoa($answerfrom);
@@ -256,11 +292,48 @@ sub poco_dns_response {
     }
   }
 
-  # Retrieve the postback for this request.
-  my $postback = delete $heap->{postback}->{$resolver_socket};
+  # Send the response.
+  _send_response(
+    %$req,
+    response => $packet,
+    error    => $heap->{resolver}->errorstring(),
+  );
+}
 
-  # If the postback exists, pass the packet back.
-  $postback->($packet, $heap->{resolver}->errorstring) if defined $postback;
+# Send a response.  Fake a postback for older API versions.  Send a
+# nice, tidy hash for new ones.  Also decrement the reference count
+# that's keeping the requester session alive.
+
+sub _send_response {
+  my %args = @_;
+
+  # Let the client session go.
+
+  $poe_kernel->refcount_decrement($args{sender}->ID, __PACKAGE__);
+
+  # Simulate a postback for older API versions.
+
+  my $api_version = delete $args{api_ver};
+  if ($api_version < 3) {
+    $poe_kernel->post(
+      $args{sender}, $args{event},
+      [ $args{host}, $args{type}, $args{class}, @{$args{context}} ],
+      [ $args{response}, $args{error} ],
+    );
+    return;
+  }
+
+  $poe_kernel->post(
+    $args{sender}, $args{event},
+    {
+      host     => $args{host},
+      type     => $args{type},
+      class    => $args{class},
+      context  => $args{context},
+      response => $args{response},
+      error    => $args{error},
+    }
+  );
 }
 
 1;
