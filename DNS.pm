@@ -294,9 +294,11 @@ This component does not yet expose the full power of Net::DNS.
 
 =head1 AUTHOR & COPYRIGHTS
 
-POE::Component::Client::DNS is Copyright 1999-2000 by Rocco Caputo.
+POE::Component::Client::DNS is Copyright 1999-2002 by Rocco Caputo.
 All rights are reserved.  POE::Component::Client::DNS is free
 software; you may redistribute it and/or modify it under the same
 terms as Perl itself.
+
+Rocco may be contacted by e-mail via rcaputo@cpan.org.
 
 =cut
