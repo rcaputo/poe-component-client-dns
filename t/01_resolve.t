@@ -151,8 +151,9 @@ sub client_stop {
        );
   print "ok 2\n";
 
-  # Give slow systems some extra time.
-  print 'not ' unless (time() - $heap->{start_time}) < (DNS_TIMEOUT * 2);
+  # Cut some slack for people running on really really slow systems.
+  print 'not '
+    unless (time() - $heap->{start_time}) < ((DNS_TIMEOUT * @hostnames) / 2);
   print "ok 3\n";
 
   DEBUG and warn "client stopped...\n";
