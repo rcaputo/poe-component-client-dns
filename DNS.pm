@@ -6,7 +6,7 @@ package POE::Component::Client::DNS;
 use strict;
 
 use vars qw($VERSION);
-$VERSION = '0.96';
+$VERSION = '0.9601';
 
 use Carp qw(croak);
 
@@ -43,6 +43,7 @@ sub spawn {
       _default         => \&poco_dns_default,
       got_dns_response => \&poco_dns_response,
       resolve          => \&poco_dns_resolve,
+      send_request     => \&poco_dns_do_request,
     },
     args => [ $alias, $timeout, $nameservers ],
   );
@@ -109,10 +110,10 @@ sub poco_dns_resolve {
         $packet->push(
           "answer",
           Net::DNS::RR->new(
-            Name => $request,
-            TTL  => 1,
-            Class => $class,
-            Type  => $type,
+            Name    => $request,
+            TTL     => 1,
+            Class   => $class,
+            Type    => $type,
             Address => $address,
           )
         );
@@ -125,17 +126,83 @@ sub poco_dns_resolve {
     }
   }
 
+  # We are here.  Yield off to the state where the request will be
+  # sent.  This is done so that the do-it state can yield or delay
+  # back to itself for retrying.
+
+  my $now = time();
+  $kernel->yield(
+    send_request => {
+      sender    => $sender,
+      response  => $response,
+      request   => $request,
+      type      => $type,
+      class     => $class,
+      user_args => \@user_args,
+      started   => $now,
+      ends      => $now + $heap->{timeout},
+      timeout   => $heap->{timeout},
+    }
+  );
+
+  # Set an extra reference on the sender so it doesn't go away yet.
+  $kernel->refcount_increment($sender->ID, __PACKAGE__);
+}
+
+# Perform the real request.  May recurse to perform retries.
+
+sub poco_dns_do_request {
+  my ($kernel, $heap, $req) = @_[KERNEL, HEAP, ARG0];
+
   # Send the request.
-  my $resolver_socket =
-    $heap->{resolver}->bgsend($request, $type, $class);
+  my $resolver_socket = $heap->{resolver}->bgsend(
+    $req->{request},
+    $req->{type},
+    $req->{class}
+  );
+
+  # The request failed?  Retry?
+  unless ($resolver_socket) {
+    # Reduce the remaining timeout, and test whether we're beyond our
+    # limit already.
+    if ( (--$req->{timeout} < 0) or (time() > $req->{ends}) ) {
+      # Simulate a postback for the timeout.
+      $kernel->post(
+        $req->{session}, $req->{response},
+        [ $req->{request}, $req->{type}, $req->{class}, @{$req->{user_args}}, ],
+        [ undef, 'timeout', ]
+      );
+
+      # Let the client session go.
+      $kernel->refcount_decrement($req->{sender}->ID, __PACKAGE__);
+
+      return;
+    }
+
+    # We still have time on the meter.  Go around again, with a
+    # slightly reduced timeout.
+    $kernel->delay_add(send_request => 1, $req);
+    return;
+  }
+
+  # We have a resolver socket!  Let's use it.
 
   # Create a postback.  This will keep the sender session alive until
   # we're done with the request.
-  $heap->{postback}->{$resolver_socket} =
-    $sender->postback($response, $request, $type, $class, @user_args);
+  $heap->{postback}->{$resolver_socket} = $req->{sender}->postback(
+    $req->{response},
+    $req->{request},
+    $req->{type},
+    $req->{class},
+    @{$req->{user_args}}
+  );
 
-  # Set the time we'll wait for a response.
-  $kernel->delay($resolver_socket, $heap->{timeout});
+  # Let the client session go.  The postback will take care of it.
+  $kernel->refcount_decrement($req->{sender}->ID, __PACKAGE__);
+
+  # Set the time we'll wait for a response.  This uses whatever time
+  # is left on the request.
+  $kernel->delay($resolver_socket, $req->{timeout});
 
   # Watch the response socket for activity.
   $kernel->select_read($resolver_socket, 'got_dns_response');
