@@ -26,6 +26,38 @@ sub SF_TIMEOUT     () { 1 }
 sub SF_NAMESERVERS () { 2 }
 sub SF_RESOLVER    () { 3 }
 
+# Attempt to figure out where /etc/hosts lives.  It moves!  Augh!  It
+# moves!  This is an attempt to resolve rt.cpan.org ticket #7911.
+
+BEGIN {
+  my @candidates = (
+    "/etc/hosts",
+  );
+
+  if ($^O eq "MSWin32" or $^O eq "Cygwin") {
+    my $sys_dir;
+    $sys_dir = $ENV{SystemRoot} || "c:\\Windows";
+    push(
+      @candidates,
+      "$sys_dir\\System32\\Drivers\\Etc\\hosts",
+      "$sys_dir\\System\\Drivers\\Etc\\hosts",
+      "$sys_dir\\hosts",
+    );
+  }
+
+  my $host_file = $candidates[0];
+  foreach my $candidate (@candidates) {
+    next unless -f $candidate;
+    $host_file = $candidate;
+    last;
+  }
+
+  $host_file =~ s/\\+/\//g;
+
+  eval "sub ETC_HOSTS () { '$host_file' }";
+  die if $@;
+}
+
 # Spawn a new PoCo::Client::DNS session.  This basically is a
 # constructor, but it isn't named "new" because it doesn't create a
 # usable object.  Instead, it spawns the object off as a session.
@@ -156,12 +188,12 @@ sub _dns_resolve {
   # Set an extra reference on the sender so it doesn't go away.
   $kernel->refcount_increment($sender->ID, __PACKAGE__);
 
-  # If it's an IN type A request, check /etc/hosts.
+  # If it's an IN type A request, check /etc/hosts or the equivalent.
   # -><- This is not always the right thing to do, but it's more right
   # more often than never checking at all.
 
   if ($type eq "A" and $class eq "IN") {
-    if (open(HOST, "</etc/hosts")) {
+    if (open(HOST, "<", ETC_HOSTS)) {
       while (<HOST>) {
         next if /^\s*\#/;
         s/^\s*//;
