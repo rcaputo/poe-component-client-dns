@@ -33,19 +33,19 @@ sub spawn {
 
   my $nameservers = delete $params{Nameservers};
 
-  croak( "$type doesn't know these parameters: ",
-         join(', ', sort keys %params)
-       ) if scalar keys %params;
+  croak(
+    "$type doesn't know these parameters: ", join(', ', sort keys %params)
+  ) if scalar keys %params;
 
-  POE::Session->create
-    ( inline_states =>
-      { _start           => \&poco_dns_start,
-        _default         => \&poco_dns_default,
-        got_dns_response => \&poco_dns_response,
-        resolve          => \&poco_dns_resolve,
-      },
-      args => [ $alias, $timeout, $nameservers ],
-    );
+  POE::Session->create(
+    inline_states => {
+      _start           => \&poco_dns_start,
+      _default         => \&poco_dns_default,
+      got_dns_response => \&poco_dns_response,
+      resolve          => \&poco_dns_resolve,
+    },
+    args => [ $alias, $timeout, $nameservers ],
+  );
 
   undef;
 }
@@ -80,8 +80,8 @@ sub poco_dns_resolve {
 
   my @user_args;
   if (ref $response eq "ARRAY") {
-	  @user_args = @{ $response };
-	  $response = shift @user_args;
+    @user_args = @{ $response };
+    $response = shift @user_args;
   }
 
   # If it's an IN type A request, check /etc/hosts.  -><- This is not
