@@ -1,0 +1,74 @@
+$Id$
+
+--------
+Abstract
+--------
+
+POE::Component::Client::DNS is an asynchronous, event driven wrapper
+for Net::DNS's Resolver class.  It accepts events containing
+Net::DNS::Resolver questions, and it returns events carrying
+Net::DNS::Packet responses.
+
+------------
+Requirements
+------------
+
+This module requires POE and Net::DNS.  The requirements are encoded
+in Makefile.PL.
+
+------------------
+Basic Installation
+------------------
+
+[Note: This section is written in advance of PoCo::Client::DNS's
+placement on the CPAN.  These steps are wrong, and you will find no
+joy following them.  Please read the Manual Installation section
+instead.]
+
+POE::Component::Client::DNS may be installed through the CPAN shell in
+the usual CPAN shell manner.  This typically is:
+
+  $ perl -MCPAN -e 'intstall POE::Component::Client::DNS'
+
+You can also read this README from the CPAN shell:
+
+  $ perl -MCPAN -e shell
+  cpan> readme POE::Component::Client::DNS
+
+And you can install the component from the CPAN prompt as well:
+
+  cpan> install POE::Component::Client::DNS
+
+-------------------
+Manual Installation
+-------------------
+
+POE::Component::Client::DNS can also be installed manually.  The
+latest CPAN version can be found at
+<ftp://ftp.cpan.org/pub/CPAN/authors/id/R/RC/RCAPUTO/> or in a
+similarly named directory at your favorite CPAN mirror.  The most
+recent development snapshot, which only rarely contains hideous
+show-stopping bugs, is available from POE's web site at
+<http://poe.perl.org/>.
+
+Downloading and unpacking the distribution are left as exercises for
+the reader.  To build and test it:
+
+  perl Makefile.PL
+  make test
+
+The test program, t/01_resolve.t, makes an excellent sample program.
+In fact, it was adapted from the sample program used to debug this
+component.  If you would like to see more details about the test's
+operation, edit t/01_resolve.t and set the DEBUG constant to any value
+Perl considers "true".
+
+When you're ready to install the component:
+
+  make install
+
+It should now be ready to use.
+
+---------------------------
+EOF: Thank you for reading.
+---------------------------

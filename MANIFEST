@@ -1,0 +1,7 @@
+# $Id$
+CHANGES
+MANIFEST
+Makefile.PL
+POE/Component/Client/DNS.pm
+README
+t/01_resolve.t
