@@ -12,9 +12,6 @@ POE::Component::Client::DNS->spawn(
   Timeout => 5,
 );
 
-my @tests = ("not ") x 4;
-my $test_number = 0;
-
 POE::Session->create(
   inline_states  => {
     _start   => \&start_tests,
