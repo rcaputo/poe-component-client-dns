@@ -13,7 +13,11 @@ WriteMakefile
     PREREQ_PM    => { POE      => 0.11,
                       Net::DNS => 0.12,
                     },
-    dist         => { COMPRESS => 'gzip -9f',
-                      SUFFIX   => 'gz',
-                    },
+    dist         =>
+    { COMPRESS => 'gzip -9f',
+      SUFFIX   => 'gz',
+      PREOP    => ( 'echo $PWD;cvs2cl.pl -l "-d\'a year ago<\'" ' .
+                    '--utc --stdout > $(DISTNAME)-$(VERSION)/CHANGES'
+                  ),
+    },
   );
