@@ -6,7 +6,7 @@ package POE::Component::Client::DNS;
 use strict;
 
 use vars qw($VERSION);
-$VERSION = '0.93';
+$VERSION = '0.94';
 
 use Carp qw(croak);
 
@@ -128,12 +128,16 @@ sub poco_dns_response {
   my $packet = $heap->{resolver}->bgread($resolver_socket);
 
   # Set the packet's answerfrom field, if the packet was received ok
-  # and an answerfrom isn't already included.
+  # and an answerfrom isn't already included.  This uses the
+  # documented peerhost() method
+
   if (defined $packet and !defined $packet->answerfrom) {
     my $answerfrom = getpeername($resolver_socket);
-    $answerfrom = (unpack_sockaddr_in($answerfrom))[1] if defined $answerfrom;
-    $answerfrom = inet_ntoa($answerfrom) if defined $answerfrom;
-    $packet->answerfrom($answerfrom) if defined $answerfrom;
+    if (defined $answerfrom) {
+      $answerfrom = (unpack_sockaddr_in($answerfrom))[1];
+      $answerfrom = inet_ntoa($answerfrom);
+      $packet->answerfrom($answerfrom);
+    }
   }
 
   # Retrieve the postback for this request.
