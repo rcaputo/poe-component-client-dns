@@ -6,10 +6,11 @@ package POE::Component::Client::DNS;
 use strict;
 
 use vars qw($VERSION);
-$VERSION = '0.91';
+$VERSION = '0.92';
 
 use Carp qw(croak);
 
+use Socket qw(unpack_sockaddr_in inet_ntoa);
 use Net::DNS;
 use POE::Session;
 
@@ -32,16 +33,16 @@ sub spawn {
 
   my $nameservers = delete $params{Nameservers};
 
-  croak( "$type doesn't know these parameters: ", 
+  croak( "$type doesn't know these parameters: ",
          join(', ', sort keys %params)
        ) if scalar keys %params;
 
   POE::Session->create
     ( inline_states =>
       { _start           => \&poco_dns_start,
-        resolve          => \&poco_dns_resolve,
         _default         => \&poco_dns_default,
         got_dns_response => \&poco_dns_response,
+        resolve          => \&poco_dns_resolve,
       },
       args => [ $alias, $timeout, $nameservers ],
     );
@@ -125,6 +126,17 @@ sub poco_dns_response {
 
   # Read the DNS response.
   my $packet = $heap->{resolver}->bgread($resolver_socket);
+
+  # Set the packet's answerfrom field, if the packet was received ok
+  # and an answerfrom isn't already included.
+  if (defined $packet and !defined $packet->answerfrom) {
+    $packet->answerfrom
+      ( inet_ntoa( (unpack_sockaddr_in( getpeername($resolver_socket)
+                                      )
+                   )[1]
+                 )
+      );
+  }
 
   # Retrieve the postback for this request.
   my $postback = delete $heap->{postback}->{$resolver_socket};
