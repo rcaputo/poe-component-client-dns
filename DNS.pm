@@ -6,7 +6,7 @@ package POE::Component::Client::DNS;
 use strict;
 
 use vars qw($VERSION);
-$VERSION = '0.9601';
+$VERSION = '0.97';
 
 use Carp qw(croak);
 
