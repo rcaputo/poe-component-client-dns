@@ -8,7 +8,7 @@ open(CHANGES, ">>CHANGES") and close CHANGES;
 
 WriteMakefile
   ( NAME         => 'POE::Component::Client::DNS',
-    AUTHOR       => 'Rocco Caputo <troc+poe@pobox.com>',
+    AUTHOR       => 'Rocco Caputo <rcaputo@cpan.org>',
     ABSTRACT     => 'POE component for non-blocking/concurrent DNS queries.',
     VERSION_FROM => 'DNS.pm',
 
@@ -17,10 +17,10 @@ WriteMakefile
                       Net::DNS => 0.12,
                     },
     dist         =>
-    { COMPRESS => 'gzip -9f',
-      SUFFIX   => 'gz',
-      PREOP    => ( 'echo $PWD;cvs2cl.pl -l "-d\'a year ago<\'" ' .
-                    '--utc --stdout > $(DISTNAME)-$(VERSION)/CHANGES'
-                  ),
+    { COMPRESS   => 'gzip -9f',
+      SUFFIX     => 'gz',
+      PREOP      => ( 'cvs-log.perl | ' .
+                      'tee ./$(DISTNAME)-$(VERSION)/CHANGES > ./CHANGES'
+                    ),
     },
   );
