@@ -3,9 +3,12 @@
 
 use ExtUtils::MakeMaker;
 
+# Touch CHANGES so it exists.
+open(CHANGES, ">>CHANGES") and close CHANGES;
+
 WriteMakefile
   ( NAME         => 'POE::Component::Client::DNS',
-    AUTHOR       => 'Rocco Caputo <troc+poe@netrus.net>',
+    AUTHOR       => 'Rocco Caputo <troc+poe@pobox.com>',
     ABSTRACT     => 'POE component for non-blocking/concurrent DNS queries.',
     VERSION_FROM => 'DNS.pm',
 
