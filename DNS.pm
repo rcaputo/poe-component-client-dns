@@ -80,10 +80,16 @@ sub poco_dns_resolve {
   my $resolver_socket =
     $heap->{resolver}->bgsend($request, $type, $class);
 
+  my @user_args;
+  if (ref $response eq "ARRAY") {
+	  @user_args = @{ $response };
+	  $response = shift @user_args;
+  }
+
   # Create a postback.  This will keep the sender session alive until
   # we're done with the request.
   $heap->{postback}->{$resolver_socket} =
-    $sender->postback($response, $request, $type, $class);
+    $sender->postback($response, $request, $type, $class, @user_args);
 
   # Set the time we'll wait for a response.
   $kernel->delay($resolver_socket, $heap->{timeout});
@@ -165,17 +171,27 @@ POE::Component::Client::DNS - a DNS client component
     Nameservers => [ localhost ], # defaults per Net::DNS
   );
 
-  $kernel->post( 'named',     # posts to the 'named' alias
-                 'resolve',   # post to named's 'resolve' state
-                 'postback',  # which of our states will receive responses
-                 $address,    # the address to resolve
-                 'A', 'IN'    # the record type and class to return
+  $kernel->post('named',     # posts to the 'named' alias
+                'resolve',   # post to named's 'resolve' state
+                'postback',  # which of our states will receive responses
+                $address,    # the address to resolve
+                'A', 'IN'    # the record type and class to return
                );
+
+  # Or
+
+  $kernel->post(named => resolve => [postback => $param], $address,'MX');
+
+  # When the specified postback state is an array reference, it will
+  # handle the first element as the name of the postback state, and
+  # any following parameters will be passed back in the $_[ARG0]
+  # array.
 
   # This is the sub which is called when the session receives a
   # 'postback' event.
   sub postback_handler {
-    my (@original_request_parameters) = @{$_[ARG0]};
+    my (@original_request_parameters) = @{$_[ARG0]}[0..2];
+    my (@postback_parameters) = @{$_[ARG0]}[3..$#_[ARG0]];
     my ($net_dns_packet, $net_dns_errorstring) = @{$_[ARG1]};
 
     my $request_address = $original_request_parameters[0];
@@ -250,24 +266,28 @@ Requests are posted to the component's "resolve" state.  They include
 the name of a state to post responses back to, an address to look up,
 and a reference to a list of record types to return.  For example:
 
-  $kernel->post( 'resolver', 'resolve', # resolver session alias & state
-                 'got_response',        # my state to receive responses
-                 'poe.perl.org',        # look up poe.perl.org
-                 'ANY'                  # return any IN records found
-               );
+  $kernel->post(resolver => resolve => # resolver session alias & state
+           [ got_response => $param ], # my state to receive responses
+              'poe.perl.org',          # look up poe.perl.org
+              'ANY'                    # return any IN records found
+            );
 
 Requests include the state to which responses will be posted.  In the
 previous example, the handler for a 'got_response' state will be
-called with each resolver response.
+called with each resolver response.  If the passed through parameter
+for 'got_response' is an array reference then the first element will
+be treated as the name of the state, and any further elements will be
+passed back to the state as arguments.
 
 Resolver responses come with two list references:
 
   my ($request_packet, $response_packet) = @_[ARG0, ARG1];
 
 C<$request_packet> contains the address and record types from the
-original request:
+original request, and any user specified parameters for postback:
 
-  my ($request_address, @request_types) = @$request_packet;
+  my ($request_address, $request_type, $request_class, @params) = 
+      @$request_packet;
 
 C<$response_packet> contains two things: a reference to a
 Net::DNS::Packet object (or undef on error), and the last
@@ -298,6 +318,8 @@ POE::Component::Client::DNS is Copyright 1999-2002 by Rocco Caputo.
 All rights are reserved.  POE::Component::Client::DNS is free
 software; you may redistribute it and/or modify it under the same
 terms as Perl itself.
+
+Postback arguments were contributed by tag.
 
 Rocco may be contacted by e-mail via rcaputo@cpan.org.
 
