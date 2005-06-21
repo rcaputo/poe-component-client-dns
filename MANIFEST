@@ -2,7 +2,6 @@
 CHANGES
 DNS.pm
 MANIFEST
-META.yml                                 Module meta-data (added by MakeMaker)
 Makefile.PL
 README
 t/01_resolve.t
