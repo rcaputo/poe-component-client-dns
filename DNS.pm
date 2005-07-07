@@ -19,44 +19,21 @@ use POE;
 
 my %req_by_socket;
 
+# A hosts file we found somewhere.
+
+my $global_hosts_file;
+
 # Object fields.  "SF" stands for "self".
 
 sub SF_ALIAS       () { 0 }
 sub SF_TIMEOUT     () { 1 }
 sub SF_NAMESERVERS () { 2 }
 sub SF_RESOLVER    () { 3 }
-
-# Attempt to figure out where /etc/hosts lives.  It moves!  Augh!  It
-# moves!  This is an attempt to resolve rt.cpan.org ticket #7911.
-
-BEGIN {
-  my @candidates = (
-    "/etc/hosts",
-  );
-
-  if ($^O eq "MSWin32" or $^O eq "Cygwin") {
-    my $sys_dir;
-    $sys_dir = $ENV{SystemRoot} || "c:\\Windows";
-    push(
-      @candidates,
-      "$sys_dir\\System32\\Drivers\\Etc\\hosts",
-      "$sys_dir\\System\\Drivers\\Etc\\hosts",
-      "$sys_dir\\hosts",
-    );
-  }
-
-  my $host_file = $candidates[0];
-  foreach my $candidate (@candidates) {
-    next unless -f $candidate;
-    $host_file = $candidate;
-    last;
-  }
-
-  $host_file =~ s/\\+/\//g;
-
-  eval "sub ETC_HOSTS () { '$host_file' }";
-  die if $@;
-}
+sub SF_HOSTS_FILE  () { 4 }
+sub SF_HOSTS_MTIME () { 5 }
+sub SF_HOSTS_CTIME () { 6 }
+sub SF_HOSTS_INODE () { 7 }
+sub SF_HOSTS_CACHE () { 8 }
 
 # Spawn a new PoCo::Client::DNS session.  This basically is a
 # constructor, but it isn't named "new" because it doesn't create a
@@ -75,6 +52,8 @@ sub spawn {
 
   my $nameservers = delete $params{Nameservers};
 
+  my $hosts = delete $params{HostsFile};
+
   croak(
     "$type doesn't know these parameters: ", join(', ', sort keys %params)
   ) if scalar keys %params;
@@ -84,6 +63,11 @@ sub spawn {
     $timeout,                   # SF_TIMEOUT
     $nameservers,               # SF_NAMESERVERS
     Net::DNS::Resolver->new(),  # SF_RESOLVER
+    $hosts,                     # SF_HOSTS_FILE
+    0,                          # SF_HOSTS_MTIME
+    0,                          # SF_HOSTS_CTIME
+    0,                          # SF_HOSTS_INODE
+    { },                        # SF_HOSTS_CACHE
   ], $type;
 
   # Set the list of nameservers, if one was supplied.
@@ -99,6 +83,7 @@ sub spawn {
         got_dns_response => "_dns_response",
         resolve          => "_dns_resolve",
         send_request     => "_dns_do_request",
+        shutdown   => "_dns_shutdown",
       },
     ],
   );
@@ -120,6 +105,12 @@ sub resolve {
   $poe_kernel->post( $self->[SF_ALIAS], "resolve", \%args );
 
   return undef;
+}
+
+sub shutdown {
+  my $self = shift;
+
+  $poe_kernel->post( $self->[SF_ALIAS], "shutdown" );
 }
 
 # Start the resolver session.  Record the parameters which were
@@ -193,47 +184,38 @@ sub _dns_resolve {
   # more often than never checking at all.
 
   if ($type eq "A" and $class eq "IN") {
-    if (open(HOST, "<", ETC_HOSTS)) {
-      while (<HOST>) {
-        next if /^\s*\#/;
-        s/^\s*//;
-        chomp;
-        my ($address, @aliases) = split;
-        next unless grep /^\Q$host\E$/i, @aliases;
-        close HOST;
+    my $address = $self->check_hosts_file($host);
 
-        # Pretend the request went through a name server.
+    if (defined $address) {
+      # Pretend the request went through a name server.
 
-        my $packet = Net::DNS::Packet->new($address, "A", "IN");
-        $packet->push(
-          "answer",
-          Net::DNS::RR->new(
-            Name    => $host,
-            TTL     => 1,
-            Class   => $class,
-            Type    => $type,
-            Address => $address,
-          )
-        );
+      my $packet = Net::DNS::Packet->new($address, "A", "IN");
+      $packet->push(
+        "answer",
+        Net::DNS::RR->new(
+          Name    => $host,
+          TTL     => 1,
+          Class   => $class,
+          Type    => $type,
+          Address => $address,
+        )
+      );
 
-        # Send the response immediately, and return.
+      # Send the response immediately, and return.
 
-        _send_response(
-          api_ver  => $api_version,
-          sender   => $sender,
-          event    => $event,
-          host     => $host,
-          type     => $type,
-          class    => $class,
-          context  => $context,
-          response => $packet,
-          error    => "",
-        );
+      _send_response(
+        api_ver  => $api_version,
+        sender   => $sender,
+        event    => $event,
+        host     => $host,
+        type     => $type,
+        class    => $class,
+        context  => $context,
+        response => $packet,
+        error    => "",
+      );
 
-        close HOST;
-        return;
-      }
-      close HOST;
+      return;
     }
   }
 
@@ -359,6 +341,14 @@ sub _dns_response {
   );
 }
 
+sub _dns_shutdown {
+  my ($self, $kernel) = @_[OBJECT, KERNEL];
+
+  foreach my $alias ( $kernel->alias_list( $_[SESSION] ) ) {
+  $kernel->alias_remove( $alias );
+  }
+}
+
 # Send a response.  Fake a postback for older API versions.  Send a
 # nice, tidy hash for new ones.  Also decrement the reference count
 # that's keeping the requester session alive.
@@ -395,6 +385,92 @@ sub _send_response {
 
   # Let the client session go.
   $poe_kernel->refcount_decrement($args{sender}->ID, __PACKAGE__);
+}
+
+### NOT A POE EVENT HANDLER
+
+sub check_hosts_file {
+  my ($self, $host) = @_;
+
+  # Use the hosts file that was specified, or find one.
+  my $use_hosts_file;
+  if (defined $self->[SF_HOSTS_FILE]) {
+    $use_hosts_file = $self->[SF_HOSTS_FILE];
+  }
+  else {
+    # Discard the hosts file name if it has disappeared.
+    $global_hosts_file = undef if (
+      $global_hosts_file and !-f $global_hosts_file
+    );
+
+    # Try to find a hosts file if one doesn't exist.
+    unless ($global_hosts_file) {
+      my @candidates = (
+        "/etc/hosts",
+      );
+
+      if ($^O eq "MSWin32" or $^O eq "Cygwin") {
+        my $sys_dir;
+        $sys_dir = $ENV{SystemRoot} || "c:\\Windows";
+        push(
+          @candidates,
+          "$sys_dir\\System32\\Drivers\\Etc\\hosts",
+          "$sys_dir\\System\\Drivers\\Etc\\hosts",
+          "$sys_dir\\hosts",
+        );
+      }
+
+      foreach my $candidate (@candidates) {
+        next unless -f $candidate;
+        $global_hosts_file = $candidate;
+        $global_hosts_file =~ s/\\+/\//g;
+        $self->[SF_HOSTS_MTIME] = 0;
+        $self->[SF_HOSTS_CTIME] = 0;
+        $self->[SF_HOSTS_INODE] = 0;
+        last;
+      }
+    }
+
+    # We use the global hosts file.
+    $use_hosts_file = $global_hosts_file;
+  }
+
+  # Still no hosts file?  Don't bother reading it, then.
+  return unless $use_hosts_file;
+
+  # Blow away our cache if the file doesn't exist.
+  $self->[SF_HOSTS_CACHE] = { } unless -f $use_hosts_file;
+
+  # Reload the hosts file if times have changed.
+  my ($inode, $mtime, $ctime) = (stat $use_hosts_file)[1, 9,10];
+  unless (
+    $self->[SF_HOSTS_MTIME] == $mtime and
+    $self->[SF_HOSTS_CTIME] == $ctime and
+    $self->[SF_HOSTS_INODE] == $inode
+  ) {
+    return unless open(HOST, "<", $use_hosts_file);
+
+    my %cached_hosts;
+    while (<HOST>) {
+      next if /^\s*\#/;
+      s/^\s*//;
+      chomp;
+      my ($address, @aliases) = split;
+
+      foreach my $alias (@aliases) {
+        $cached_hosts{$alias} = $address;
+      }
+    }
+    close HOST;
+
+    $self->[SF_HOSTS_CACHE] = \%cached_hosts;
+    $self->[SF_HOSTS_MTIME] = $mtime;
+    $self->[SF_HOSTS_CTIME] = $ctime;
+    $self->[SF_HOSTS_INODE] = $inode;
+  }
+
+  # Return whatever match we have.
+  return $self->[SF_HOSTS_CACHE]{$host};
 }
 
 1;
@@ -497,6 +573,16 @@ that appear in /etc/resolv.conf or its equivalent.
 
   Nameservers => \@name_servers,  # defaults to /etc/resolv.conf's
 
+HostsFile (optional) holds the name of a specific hosts file to use
+for resolving hardcoded addresses.  By default, it looks for a file
+named /etc/hosts.
+
+On Windows systems, it may look in the following other places:
+
+  $ENV{SystemRoot}\System32\Drivers\Etc\hosts
+  $ENV{SystemRoot}\System\Drivers\Etc\hosts
+  $ENV{SystemRoot}\hosts
+
 =item resolve
 
 resolve() requests the component to resolve a host name.  It will
@@ -534,6 +620,11 @@ their requests.  The context data is provided by the program that uses
 POE::Component::Client::DNS.  The component will pass the context back
 to the program without modification.  The "context" parameter is
 required, and may contain anything that fits in a scalar.
+
+=item shutdown
+
+shutdown() causes the component to terminate gracefully. It will finish
+serving pending requests then close down.
 
 =head1 RESPONSE MESSAGES
 
