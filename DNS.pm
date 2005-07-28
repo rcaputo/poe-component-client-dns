@@ -458,10 +458,21 @@ sub check_hosts_file {
       my ($address, @aliases) = split;
 
       foreach my $alias (@aliases) {
-        $cached_hosts{$alias} = $address;
+        $cached_hosts{$alias}{$address} = 1;
       }
     }
     close HOST;
+
+    # Normalize our cached hosts.
+    foreach my $alias (keys %cached_hosts) {
+      my @addresses = keys %{$cached_hosts{$alias}};
+      my @ipv4 = grep /\./, @addresses;
+      if (@ipv4) {
+        $cached_hosts{$alias} = $ipv4[0];
+        next;
+      }
+      $cached_hosts{$alias} = $addresses[0];
+    }
 
     $self->[SF_HOSTS_CACHE] = \%cached_hosts;
     $self->[SF_HOSTS_MTIME] = $mtime;
