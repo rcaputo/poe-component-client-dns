@@ -6,7 +6,7 @@ package POE::Component::Client::DNS;
 use strict;
 
 use vars qw($VERSION);
-$VERSION = '0.9801';
+$VERSION = '0.9802';
 
 use Carp qw(croak);
 
@@ -34,6 +34,7 @@ sub SF_HOSTS_MTIME () { 5 }
 sub SF_HOSTS_CTIME () { 6 }
 sub SF_HOSTS_INODE () { 7 }
 sub SF_HOSTS_CACHE () { 8 }
+sub SF_HOSTS_BYTES () { 9 }
 
 # Spawn a new PoCo::Client::DNS session.  This basically is a
 # constructor, but it isn't named "new" because it doesn't create a
@@ -68,6 +69,7 @@ sub spawn {
     0,                          # SF_HOSTS_CTIME
     0,                          # SF_HOSTS_INODE
     { },                        # SF_HOSTS_CACHE
+    0,                          # SF_HOSTS_BYTES
   ], $type;
 
   # Set the list of nameservers, if one was supplied.
@@ -442,11 +444,12 @@ sub check_hosts_file {
   $self->[SF_HOSTS_CACHE] = { } unless -f $use_hosts_file;
 
   # Reload the hosts file if times have changed.
-  my ($inode, $mtime, $ctime) = (stat $use_hosts_file)[1, 9,10];
+  my ($inode, $bytes, $mtime, $ctime) = (stat $use_hosts_file)[1, 7, 9,10];
   unless (
     $self->[SF_HOSTS_MTIME] == $mtime and
     $self->[SF_HOSTS_CTIME] == $ctime and
-    $self->[SF_HOSTS_INODE] == $inode
+    $self->[SF_HOSTS_INODE] == $inode and
+		$self->[SF_HOSTS_BYTES] == $bytes
   ) {
     return unless open(HOST, "<", $use_hosts_file);
 
@@ -478,6 +481,7 @@ sub check_hosts_file {
     $self->[SF_HOSTS_MTIME] = $mtime;
     $self->[SF_HOSTS_CTIME] = $ctime;
     $self->[SF_HOSTS_INODE] = $inode;
+    $self->[SF_HOSTS_BYTES] = $bytes;
   }
 
   # Return whatever match we have.
