@@ -49,6 +49,7 @@ sub response_no_hosts {
   );
 
   # 2. Test with a hosts file that contains a host match.
+  unlink HOSTS_FILE;  # Changes inode!
   open(HF, ">" . HOSTS_FILE) or die "couldn't write hosts file: $!";
   print HF "123.456.789.012 poe.perl.org\n";
   close HF;
