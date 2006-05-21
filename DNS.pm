@@ -14,6 +14,8 @@ use Socket qw(unpack_sockaddr_in inet_ntoa);
 use Net::DNS;
 use POE;
 
+use constant DEBUG => 0;
+
 # Keep track of requests for each response socket.  Used to pass data
 # around select_read().
 
@@ -35,6 +37,7 @@ sub SF_HOSTS_CTIME () { 6 }
 sub SF_HOSTS_INODE () { 7 }
 sub SF_HOSTS_CACHE () { 8 }
 sub SF_HOSTS_BYTES () { 9 }
+sub SF_SHUTDOWN    () { 10 }
 
 # Spawn a new PoCo::Client::DNS session.  This basically is a
 # constructor, but it isn't named "new" because it doesn't create a
@@ -70,6 +73,7 @@ sub spawn {
     0,                          # SF_HOSTS_INODE
     { },                        # SF_HOSTS_CACHE
     0,                          # SF_HOSTS_BYTES
+    0,                          # SF_SHUTDOWN
   ], $type;
 
   # Set the list of nameservers, if one was supplied.
@@ -82,10 +86,11 @@ sub spawn {
       $self => {
         _default         => "_dns_default",
         _start           => "_dns_start",
+        _stop            => "_dns_stop",
         got_dns_response => "_dns_response",
         resolve          => "_dns_resolve",
         send_request     => "_dns_do_request",
-        shutdown   => "_dns_shutdown",
+        shutdown         => "_dns_shutdown",
       },
     ],
   );
@@ -104,15 +109,14 @@ sub resolve {
   croak "resolve() must include a 'context'" unless exists $args{context};
   croak "resolve() must include a 'host'"    unless exists $args{host};
 
-  $poe_kernel->post( $self->[SF_ALIAS], "resolve", \%args );
+  $poe_kernel->call( $self->[SF_ALIAS], "resolve", \%args );
 
   return undef;
 }
 
 sub shutdown {
   my $self = shift;
-
-  $poe_kernel->post( $self->[SF_ALIAS], "shutdown" );
+  $poe_kernel->call( $self->[SF_ALIAS], "shutdown" );
 }
 
 # Start the resolver session.  Record the parameters which were
@@ -122,6 +126,12 @@ sub shutdown {
 sub _dns_start {
   my ($object, $kernel) = @_[OBJECT, KERNEL];
   $kernel->alias_set($object->[SF_ALIAS]);
+}
+
+# Dummy handler to avoid ASSERT_DEFAULT problems.
+
+sub _dns_stop {
+  # do nothing
 }
 
 # Receive a request.  Version 4 API.  This uses extra reference counts
@@ -226,7 +236,8 @@ sub _dns_resolve {
   # back to itself for retrying.
 
   my $now = time();
-  $kernel->yield(
+  $kernel->call(
+    $self->[SF_ALIAS],
     send_request => {
       sender    => $sender,
       event     => $event,
@@ -279,6 +290,9 @@ sub _dns_do_request {
 
   $kernel->delay($resolver_socket, $remaining, $resolver_socket);
   $kernel->select_read($resolver_socket, 'got_dns_response');
+
+  # Save the socket for pre-emptive shutdown.
+  $req->{resolver_socket} = $resolver_socket;
 }
 
 # A resolver query timed out.  Post an error back.
@@ -346,9 +360,27 @@ sub _dns_response {
 sub _dns_shutdown {
   my ($self, $kernel) = @_[OBJECT, KERNEL];
 
-  foreach my $alias ( $kernel->alias_list( $_[SESSION] ) ) {
-  $kernel->alias_remove( $alias );
+  # Clean up all pending socket timeouts and selects.
+  foreach my $socket (keys %req_by_socket) {
+    DEBUG and warn "SHT: Shutting down resolver socket $socket";
+    my $req = delete $req_by_socket{$socket};
+
+    $kernel->delay($socket);
+    $kernel->select($req->{resolver_socket});
+
+    # Let the client session go.
+    DEBUG and warn "SHT: Releasing sender ", $req->{sender}->ID;
+    $poe_kernel->refcount_decrement($req->{sender}->ID, __PACKAGE__);
   }
+
+  # Clean out our global timeout.
+  $kernel->delay(send_request => undef);
+
+  # Clean up our global alias.
+  DEBUG and warn "SHT: Resolver removing alias $self->[SF_ALIAS]";
+  $kernel->alias_remove($self->[SF_ALIAS]);
+
+  $self->[SF_SHUTDOWN] = 1;
 }
 
 # Send a response.  Fake a postback for older API versions.  Send a
@@ -449,7 +481,7 @@ sub check_hosts_file {
     $self->[SF_HOSTS_MTIME] == $mtime and
     $self->[SF_HOSTS_CTIME] == $ctime and
     $self->[SF_HOSTS_INODE] == $inode and
-		$self->[SF_HOSTS_BYTES] == $bytes
+    $self->[SF_HOSTS_BYTES] == $bytes
   ) {
     return unless open(HOST, "<", $use_hosts_file);
 
