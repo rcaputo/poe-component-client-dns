@@ -6,6 +6,7 @@
 
 use warnings;
 use strict;
+sub POE::Kernel::ASSERT_DEFAULT () { 1 }
 use POE qw(Component::Client::DNS);
 use Test::More tests => 3;
 
@@ -20,6 +21,7 @@ my $resolver = POE::Component::Client::DNS->spawn(
 POE::Session->create(
   inline_states  => {
     _start                 => \&start_tests,
+    _stop                  => sub { }, # avoid assert problems
     response_no_hosts      => \&response_no_hosts,
     response_hosts_match   => \&response_hosts_match,
     response_hosts_nomatch => \&response_hosts_nomatch,

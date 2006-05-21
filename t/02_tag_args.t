@@ -29,6 +29,8 @@ POE::Session->create(
       }
     },
 
+    _stop => sub { }, # for asserts
+
     reverse => sub {
       if ($_[ARG0][3] eq "TEST WORKED") {
         $tests[$_[ARG0][4]] = "";

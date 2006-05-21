@@ -1,9 +1,11 @@
 #!/usr/bin/perl -w
 # $Id$
+# vim: filetype=perl
 
 # Test the version 3 API.
 
 use strict;
+sub POE::Kernel::ASSERT_DEFAULT () { 1 }
 use POE qw(Component::Client::DNS);
 use Test::More tests => 4;
 
@@ -16,6 +18,7 @@ POE::Session->create(
   inline_states  => {
     _start   => \&start_tests,
     response => \&got_response,
+    _stop    => sub { }, # avoid assert problems
   }
 );
 
