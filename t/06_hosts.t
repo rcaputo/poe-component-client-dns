@@ -99,6 +99,7 @@ sub response_hosts_nomatch {
 
 sub a_data {
   my $response = shift;
+  return "" unless defined $response->{response};
 
   return (
     grep { ref() eq "Net::DNS::RR::A" } $response->{response}->answer()
