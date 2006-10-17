@@ -14,7 +14,7 @@ WriteMakefile(
   PM           => { 'DNS.pm' => '$(INST_LIBDIR)/DNS.pm' },
   PREREQ_PM    => {
     'POE'        => 0.31,
-    'Net::DNS'   => 0.53,
+    'Net::DNS'   => 0.59,
     'Test::More' => 0,
   },
   dist         => {
