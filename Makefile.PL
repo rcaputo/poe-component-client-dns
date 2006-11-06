@@ -10,6 +10,7 @@ WriteMakefile(
   NAME         => 'POE::Component::Client::DNS',
   AUTHOR       => 'Rocco Caputo <rcaputo@cpan.org>',
   ABSTRACT     => 'Non-blocking/concurrent DNS queries using Net::DNS and POE',
+  LICENSE      => 'perl',
   VERSION_FROM => 'DNS.pm',
   PM           => { 'DNS.pm' => '$(INST_LIBDIR)/DNS.pm' },
   PREREQ_PM    => {
