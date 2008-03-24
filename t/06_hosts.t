@@ -10,6 +10,9 @@ sub POE::Kernel::ASSERT_DEFAULT () { 1 }
 use POE qw(Component::Client::DNS);
 use Test::More tests => 3;
 
+require Net::DNS;
+my $can_resolve = Net::DNS::Resolver->new->search("poe.perl.org");
+
 use constant HOSTS_FILE => "./test-hosts";
 
 my $resolver = POE::Component::Client::DNS->spawn(
@@ -45,10 +48,14 @@ sub start_tests {
 sub response_no_hosts {
   my $response = $_[ARG0];
   my $address = a_data($response);
+  SKIP: {
+  skip "Can't resolve with Net::DNS, network probably not available", 1
+  unless($can_resolve);
   ok(
     $address eq "66.33.204.143",
     "lookup without hosts file ($address)"
   );
+  }
 
   # 2. Test with a hosts file that contains a host match.
   unlink HOSTS_FILE;  # Changes inode!
@@ -87,10 +94,14 @@ sub response_hosts_match {
 sub response_hosts_nomatch {
   my $response = $_[ARG0];
   my $address = a_data($response);
+  SKIP: {
+  skip "Can't resolve with Net::DNS, network probably not available", 1
+  unless($can_resolve);
   ok(
     $address eq "66.33.204.143",
     "lookup without hosts file match ($address)"
   );
+  }
 
   unlink HOSTS_FILE;
 }
