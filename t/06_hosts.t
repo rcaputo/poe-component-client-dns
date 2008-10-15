@@ -49,12 +49,12 @@ sub response_no_hosts {
   my $response = $_[ARG0];
   my $address = a_data($response);
   SKIP: {
-  skip "Can't resolve with Net::DNS, network probably not available", 1
-  unless($can_resolve);
-  ok(
-    $address eq "66.33.204.143",
-    "lookup without hosts file ($address)"
-  );
+    skip "Can't resolve with Net::DNS, network probably not available", 1
+      unless($can_resolve);
+    ok(
+      ($address eq "67.207.145.70") || ($address eq "208.97.190.64"),
+      "lookup with no hosts file ($address)"
+    );
   }
 
   # 2. Test with a hosts file that contains a host match.
@@ -75,7 +75,7 @@ sub response_hosts_match {
   my $address = a_data($response);
   ok(
     $address eq "123.456.789.012",
-    "lookup without hosts file match ($address)"
+    "lookup when hosts file matches ($address)"
   );
 
   # 3. Test against a hosts file without a host match.
@@ -95,12 +95,12 @@ sub response_hosts_nomatch {
   my $response = $_[ARG0];
   my $address = a_data($response);
   SKIP: {
-  skip "Can't resolve with Net::DNS, network probably not available", 1
-  unless($can_resolve);
-  ok(
-    $address eq "66.33.204.143",
-    "lookup without hosts file match ($address)"
-  );
+    skip "Can't resolve with Net::DNS, network probably not available", 1
+      unless($can_resolve);
+    ok(
+      ($address eq "67.207.145.70") || ($address eq "208.97.190.64"),
+      "lookup with hosts file but no match ($address)"
+    );
   }
 
   unlink HOSTS_FILE;
