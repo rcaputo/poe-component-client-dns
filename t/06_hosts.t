@@ -60,7 +60,7 @@ sub response_no_hosts {
   # 2. Test with a hosts file that contains a host match.
   unlink HOSTS_FILE;  # Changes inode!
   open(HF, ">" . HOSTS_FILE) or die "couldn't write hosts file: $!";
-  print HF "123.456.789.012 poe.perl.org\n";
+  print HF "123.45.67.89 poe.perl.org\n";
   close HF;
 
   $resolver->resolve(
@@ -74,7 +74,7 @@ sub response_hosts_match {
   my $response = $_[ARG0];
   my $address = a_data($response);
   ok(
-    $address eq "123.456.789.012",
+    $address eq "123.45.67.89",
     "lookup when hosts file matches ($address)"
   );
 
