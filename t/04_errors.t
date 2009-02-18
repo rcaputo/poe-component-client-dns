@@ -17,7 +17,7 @@ POE::Kernel->run();
 {
 	eval { POE::Component::Client::DNS->spawn(1); };
 	my $err = $@;
-  $err =~ s/ at \S+ line \d+.*//s;
+	$err =~ s/ at \S+ line \d+.*//s;
 	is(
 		$err, "POE::Component::Client::DNS requires an even number of parameters"
 	);
@@ -26,7 +26,7 @@ POE::Kernel->run();
 {
 	eval { POE::Component::Client::DNS->spawn(moo => "nope"); };
 	my $err = $@;
-  $err =~ s/ at \S+ line \d+.*//s;
+	$err =~ s/ at \S+ line \d+.*//s;
 	is(
 		$err, "POE::Component::Client::DNS doesn't know these parameters: moo"
 	);
@@ -42,8 +42,7 @@ my $resolver = POE::Component::Client::DNS->spawn();
 		);
 	};
 	my $err = $@;
-	my $err = $@;
-  $err =~ s/ at \S+ line \d+.*//s;
+	$err =~ s/ at \S+ line \d+.*//s;
 	is($err, "Must include an 'event' in Client::DNS request");
 }
 
@@ -56,7 +55,7 @@ my $resolver = POE::Component::Client::DNS->spawn();
 		);
 	};
 	my $err = $@;
-  $err =~ s/ at \S+ line \d+.*//s;
+	$err =~ s/ at \S+ line \d+.*//s;
 	is($err, "Must include a 'context' in Client::DNS request");
 }
 
@@ -70,7 +69,7 @@ my $resolver = POE::Component::Client::DNS->spawn();
 		);
 	};
 	my $err = $@;
-  $err =~ s/ at \S+ line \d+.*//s;
+	$err =~ s/ at \S+ line \d+.*//s;
 	is($err, "Must include a 'host' in Client::DNS request");
 }
 
@@ -79,7 +78,7 @@ my $resolver = POE::Component::Client::DNS->spawn();
 		$resolver->resolve(1);
 	};
 	my $err = $@;
-  $err =~ s/ at \S+ line \d+.*//s;
+	$err =~ s/ at \S+ line \d+.*//s;
 	is($err, "resolve() needs an even number of parameters");
 }
 
@@ -88,7 +87,7 @@ my $resolver = POE::Component::Client::DNS->spawn();
 		$resolver->resolve();
 	};
 	my $err = $@;
-  $err =~ s/ at \S+ line \d+.*//s;
+	$err =~ s/ at \S+ line \d+.*//s;
 	is($err, "resolve() must include an 'event'");
 }
 
@@ -99,7 +98,7 @@ my $resolver = POE::Component::Client::DNS->spawn();
 		);
 	};
 	my $err = $@;
-  $err =~ s/ at \S+ line \d+.*//s;
+	$err =~ s/ at \S+ line \d+.*//s;
 	is($err, "resolve() must include a 'context'");
 }
 
@@ -111,7 +110,7 @@ my $resolver = POE::Component::Client::DNS->spawn();
 		);
 	};
 	my $err = $@;
-  $err =~ s/ at \S+ line \d+.*//s;
+	$err =~ s/ at \S+ line \d+.*//s;
 	is($err, "resolve() must include a 'host'");
 }
 

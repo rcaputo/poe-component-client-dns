@@ -6,7 +6,7 @@ package POE::Component::Client::DNS;
 use strict;
 
 use vars qw($VERSION);
-$VERSION = '1.02_01';
+$VERSION = '1.03';
 
 use Carp qw(croak);
 
@@ -474,10 +474,10 @@ sub check_hosts_file {
   # Reload the hosts file if times have changed.
   my ($inode, $bytes, $mtime, $ctime) = (stat $use_hosts_file)[1, 7, 9,10];
   unless (
-    $self->[SF_HOSTS_MTIME] == $mtime and
-    $self->[SF_HOSTS_CTIME] == $ctime and
-    $self->[SF_HOSTS_INODE] == $inode and
-    $self->[SF_HOSTS_BYTES] == $bytes
+    $self->[SF_HOSTS_MTIME] == ($mtime || -1) and
+    $self->[SF_HOSTS_CTIME] == ($ctime || -1) and
+    $self->[SF_HOSTS_INODE] == ($inode || -1) and
+    $self->[SF_HOSTS_BYTES] == ($bytes || -1)
   ) {
     return unless open(HOST, "<", $use_hosts_file);
 
