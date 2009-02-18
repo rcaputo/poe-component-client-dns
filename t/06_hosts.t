@@ -13,6 +13,13 @@ use Test::More tests => 3;
 require Net::DNS;
 my $can_resolve = Net::DNS::Resolver->new->search("poe.perl.org");
 
+my %target_address;
+if ($can_resolve) {
+  foreach ($can_resolve->answer()) {
+    $target_address{$_->address} = 1 if $_->type eq "A";
+  }
+}
+
 use constant HOSTS_FILE => "./test-hosts";
 
 my $resolver = POE::Component::Client::DNS->spawn(
@@ -52,7 +59,7 @@ sub response_no_hosts {
     skip "Can't resolve with Net::DNS, network probably not available", 1
       unless($can_resolve);
     ok(
-      ($address eq "67.207.145.70") || ($address eq "208.97.190.64"),
+      exists $target_address{$address},
       "lookup with no hosts file ($address)"
     );
   }
@@ -98,7 +105,7 @@ sub response_hosts_nomatch {
     skip "Can't resolve with Net::DNS, network probably not available", 1
       unless($can_resolve);
     ok(
-      ($address eq "67.207.145.70") || ($address eq "208.97.190.64"),
+      exists $target_address{$address},
       "lookup with hosts file but no match ($address)"
     );
   }
