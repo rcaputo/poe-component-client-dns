@@ -193,13 +193,13 @@ sub _dns_resolve {
   # -><- This is not always the right thing to do, but it's more right
   # more often than never checking at all.
 
-  if ($type eq "A" and $class eq "IN") {
-    my $address = $self->check_hosts_file($host);
+  if (($type eq "A" or $type eq "AAAA") and $class eq "IN") {
+    my $address = $self->check_hosts_file($host, $type);
 
     if (defined $address) {
       # Pretend the request went through a name server.
 
-      my $packet = Net::DNS::Packet->new($address, "A", "IN");
+      my $packet = Net::DNS::Packet->new($address, $type, "IN");
       $packet->push(
         "answer",
         Net::DNS::RR->new(
@@ -444,7 +444,7 @@ sub _send_response {
 ### NOT A POE EVENT HANDLER
 
 sub check_hosts_file {
-  my ($self, $host) = @_;
+  my ($self, $host, $type) = @_;
 
   # Use the hosts file that was specified, or find one.
   my $use_hosts_file;
@@ -511,22 +511,18 @@ sub check_hosts_file {
       s/^\s*//;
       chomp;
       my ($address, @aliases) = split;
-
+      my $type = ($address =~ /:/) ? "AAAA" : "A";
       foreach my $alias (@aliases) {
-        $cached_hosts{$alias}{$address} = 1;
+        $cached_hosts{$alias}{$type}{$address} = 1;
       }
     }
     close HOST;
 
     # Normalize our cached hosts.
-    foreach my $alias (keys %cached_hosts) {
-      my @addresses = keys %{$cached_hosts{$alias}};
-      my @ipv4 = grep /\./, @addresses;
-      if (@ipv4) {
-        $cached_hosts{$alias} = $ipv4[0];
-        next;
+    while (my ($alias, $type_rec) = each %cached_hosts) {
+      while (my ($type, $address_rec) = each %$type_rec) {
+        $cached_hosts{$alias}{$type} = (keys %$address_rec)[0];
       }
-      $cached_hosts{$alias} = $addresses[0];
     }
 
     $self->[SF_HOSTS_CACHE] = \%cached_hosts;
@@ -537,7 +533,11 @@ sub check_hosts_file {
   }
 
   # Return whatever match we have.
-  return $self->[SF_HOSTS_CACHE]{$host};
+  return unless (
+    (exists $self->[SF_HOSTS_CACHE]{$host}) and
+    (exists $self->[SF_HOSTS_CACHE]{$host}{$type})
+  );
+  return $self->[SF_HOSTS_CACHE]{$host}{$type};
 }
 
 ### NOT A POE EVENT HANDLER
