@@ -1,5 +1,6 @@
 # $Id$
 # License and documentation are after __END__.
+# vim: ts=2 sw=2 expandtab
 
 package POE::Component::Client::DNS;
 
@@ -51,6 +52,8 @@ sub spawn {
   $timeout = 90 unless $timeout;
 
   my $nameservers = delete $params{Nameservers};
+  my $resolver = Net::DNS::Resolver->new();
+  $nameservers ||= [ $resolver->nameservers() ];
 
   my $hosts = delete $params{HostsFile};
 
@@ -62,7 +65,7 @@ sub spawn {
     $alias,                     # SF_ALIAS
     $timeout,                   # SF_TIMEOUT
     $nameservers,               # SF_NAMESERVERS
-    Net::DNS::Resolver->new(),  # SF_RESOLVER
+    $resolver,                  # SF_RESOLVER
     $hosts,                     # SF_HOSTS_FILE
     0,                          # SF_HOSTS_MTIME
     0,                          # SF_HOSTS_CTIME
@@ -73,9 +76,8 @@ sub spawn {
   ], $type;
 
   # Set the list of nameservers, if one was supplied.
-  if (defined($nameservers) and ref($nameservers) eq 'ARRAY') {
-    $self->[SF_RESOLVER]->nameservers(@$nameservers);
-  }
+  # May redundantly reset itself.
+  $self->[SF_RESOLVER]->nameservers(@$nameservers);
 
   POE::Session->create(
     object_states => [
@@ -244,6 +246,7 @@ sub _dns_resolve {
       started   => $now,
       ends      => $now + $timeout,
       api_ver   => $api_version,
+      nameservers => [ $self->[SF_RESOLVER]->nameservers() ],
     }
   );
 }
@@ -284,14 +287,16 @@ sub _dns_do_request {
 
   $self->[SF_REQ_BY_SOCK]->{$resolver_socket} = $req;
 
-  $kernel->delay($resolver_socket, $remaining, $resolver_socket);
+  $kernel->delay($resolver_socket, $remaining / 2, $resolver_socket);
   $kernel->select_read($resolver_socket, 'got_dns_response');
 
   # Save the socket for pre-emptive shutdown.
   $req->{resolver_socket} = $resolver_socket;
 }
 
-# A resolver query timed out.  Post an error back.
+# A resolver query timed out.  Keep trying until we run out of time.
+# Also, if the top nameserver is the one we tried, then cycle the
+# nameservers.
 
 sub _dns_default {
   my ($self, $kernel, $event, $args) = @_[OBJECT, KERNEL, ARG0, ARG1];
@@ -305,12 +310,31 @@ sub _dns_default {
   # Stop watching the socket.
   $kernel->select_read($socket);
 
-  # Post back an undefined response, indicating we timed out.
-  _send_response(
-    %$req,
-    response => undef,
-    error    => "timeout",
-  );
+  # No more time remaining?  We must time out.
+  my $remaining = $req->{ends} - time();
+  if ($remaining <= 0) {
+    _send_response(
+      %$req,
+      response => undef,
+      error    => "timeout",
+    );
+    return;
+  }
+
+  # There remains time.  Let's try again.
+
+  # The nameserver we tried has failed us.  If it's the top
+  # nameserver in Net::DNS's list, then send it to the back and retry.
+
+  my @nameservers = $self->[SF_RESOLVER]->nameservers();
+  if ($nameservers[0] eq $req->{nameservers}[0]) {
+    push @nameservers, shift(@nameservers);
+    $self->[SF_RESOLVER]->nameservers(@nameservers);
+    $req->{nameservers} = \@nameservers;
+  }
+
+  # Retry.
+  $kernel->yield(send_request => $req);
 
   # Don't accidentally handle signals.
   return;
