@@ -745,13 +745,6 @@ L<Net::DNS> - This module uses Net::DNS internally.
 L<Net::DNS::Packet> - Responses are returned as Net::DNS::Packet
 objects.
 
-=head1 BUGS
-
-This component does not yet expose the full power of Net::DNS.
-
-Timeouts have not been tested extensively.  Please contact the author
-if you know of a reliable way to test DNS timeouts.
-
 =head1 DEPRECATIONS
 
 The older, list-based interfaces are no longer documented as of
@@ -770,15 +763,25 @@ As of April 2005 the mandatory warnings will be upgraded to mandatory
 errors.  Support for the deprecated interfaces will be removed
 entirely.
 
+=head1 BUG TRACKER
+
+https://rt.cpan.org/Dist/Display.html?Status=Active&Queue=POE-Component-Client-DNS
+
+=head1 REPOSITORY
+
+http://thirdlobe.com/svn/poco-client-dns/
+
+=head1 OTHER RESOURCES
+
+http://search.cpan.org/dist/POE-Component-Client-DNS/
+
 =head1 AUTHOR & COPYRIGHTS
 
-POE::Component::Client::DNS is Copyright 1999-2004 by Rocco Caputo.
+POE::Component::Client::DNS is Copyright 1999-2009 by Rocco Caputo.
 All rights are reserved.  POE::Component::Client::DNS is free
 software; you may redistribute it and/or modify it under the same
 terms as Perl itself.
 
 Postback arguments were contributed by tag.
-
-Rocco may be contacted by e-mail via rcaputo@cpan.org.
 
 =cut

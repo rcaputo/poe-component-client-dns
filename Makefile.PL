@@ -18,6 +18,12 @@ WriteMakefile(
     'Net::DNS'   => 0.59,
     'Test::More' => 0,
   },
+  META_ADD     => {
+    resources  => {
+      license    => 'http://dev.perl.org/licenses/',
+      repository => 'http://thirdlobe.com/svn/poco-client-dns/trunk'
+    },
+  },
   dist         => {
     COMPRESS   => 'gzip -9f',
     SUFFIX     => 'gz',
