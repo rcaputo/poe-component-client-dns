@@ -510,6 +510,7 @@ sub check_hosts_file {
       next if /^\s*\#/;
       s/^\s*//;
       chomp;
+      next if /^(\s*\#|\s*$)/;
       my ($address, @aliases) = split;
       my $type = ($address =~ /:/) ? "AAAA" : "A";
       foreach my $alias (@aliases) {
