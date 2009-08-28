@@ -766,7 +766,7 @@ entirely.
 
 =head1 BUG TRACKER
 
-https://rt.cpan.org/Dist/Display.html?Status=Active&Queue=POE-Component-Client-DNS
+https://rt.cpan.org/Dist/Display.html?Queue=POE-Component-Client-DNS
 
 =head1 REPOSITORY
 
