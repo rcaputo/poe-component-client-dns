@@ -6,9 +6,8 @@ use strict;
 use lib '/home/troc/perl/poe';
 sub POE::Kernel::ASSERT_DEFAULT () { 1 }
 use POE qw(Component::Client::DNS);
-
-$| = 1;
-print "1..3\n";
+use Test::More tests => 4;
+use Test::NoWarnings;
 
 sub DNS_TIMEOUT () { 3 };
 sub DEBUG       () { 0 };
@@ -144,26 +143,26 @@ sub client_stop {
     warn "other records: $heap->{other_records}\n";
   }
 
-  print 'not '
-    unless (
-      $heap->{answers} + $heap->{no_answers} +
-      $heap->{timeouts} + $heap->{errors} ==
-      @hostnames
-    );
-  print "ok 1\n";
+	is(
+		$heap->{answers} + $heap->{no_answers} +
+		$heap->{timeouts} + $heap->{errors},
+		scalar(@hostnames),
+		"expected number of outcomes"
+	);
 
-  print 'not '
-    if (
-      $heap->{a_records} + $heap->{mx_records} +
-      $heap->{cname_records} + $heap->{other_records} <
-      $heap->{answers}
-    );
-  print "ok 2\n";
+	ok(
+		$heap->{a_records} + $heap->{mx_records}
+		+ $heap->{cname_records} + $heap->{other_records}
+		>= $heap->{answers},
+		"got enough records"
+	);
 
   # Cut some slack for people running on really really slow systems.
-  print 'not '
-    unless (time() - $heap->{start_time}) < ((DNS_TIMEOUT * @hostnames) / 2);
-  print "ok 3\n";
+
+	ok(
+		time() - $heap->{start_time} < (DNS_TIMEOUT * @hostnames) / 2,
+		"tests ran sufficiently quickly"
+	);
 
   DEBUG and warn "client stopped...\n";
 }

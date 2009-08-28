@@ -7,7 +7,7 @@ package POE::Component::Client::DNS;
 use strict;
 
 use vars qw($VERSION);
-$VERSION = '1.04';
+$VERSION = '1.050';
 
 use Carp qw(croak);
 
@@ -507,11 +507,14 @@ sub check_hosts_file {
 
     my %cached_hosts;
     while (<HOST>) {
-      next if /^\s*\#/;
-      s/^\s*//;
+      next if /^\s*\#/; # skip all-comment lines
+      next if /^\s*$/;  # skip empty lines
       chomp;
-      next if /^(\s*\#|\s*$)/;
+
+      # Bare split discards leading and trailing whitespace.
       my ($address, @aliases) = split;
+      next unless defined $address;
+
       my $type = ($address =~ /:/) ? "AAAA" : "A";
       foreach my $alias (@aliases) {
         $cached_hosts{$alias}{$type}{$address} = 1;

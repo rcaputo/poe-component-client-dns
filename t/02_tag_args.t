@@ -5,7 +5,8 @@ use strict;
 use POE qw(Component::Client::DNS);
 use Data::Dumper;
 
-print "1..4\n";
+use Test::More tests => 5;
+use Test::NoWarnings;
 
 my $reverse = "127.0.0.1";
 
@@ -14,16 +15,13 @@ POE::Component::Client::DNS->spawn(
   Timeout => 5,
 );
 
-my @tests = ("not ") x 4;
-my $test_number = 0;
-
 POE::Session->create(
   inline_states  => {
     _start => sub {
       for (1..4) {
         $_[KERNEL]->post(
           named => resolve =>
-          [ reverse => "TEST WORKED", $test_number++ ] =>
+          [ reverse => "TEST WORKED" ] =>
           $reverse, 'PTR'
         );
       }
@@ -32,17 +30,11 @@ POE::Session->create(
     _stop => sub { }, # for asserts
 
     reverse => sub {
-      if ($_[ARG0][3] eq "TEST WORKED") {
-        $tests[$_[ARG0][4]] = "";
-      }
+			is( $_[ARG0][3], "TEST WORKED", "test worked" );
     },
   }
 );
 
 POE::Kernel->run;
-
-for (1..@tests) {
-  print shift(@tests), "ok $_\n";
-}
 
 exit 0;

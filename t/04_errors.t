@@ -9,7 +9,8 @@ use strict;
 sub POE::Kernel::CATCH_EXCEPTIONS () { 0 }
 use POE qw(Component::Client::DNS);
 
-use Test::More tests => 9;
+use Test::More tests => 10;
+use Test::NoWarnings;
 
 # Avoid a warning.
 POE::Kernel->run();

@@ -14,9 +14,10 @@ WriteMakefile(
   VERSION_FROM => 'DNS.pm',
   PM           => { 'DNS.pm' => '$(INST_LIBDIR)/DNS.pm' },
   PREREQ_PM    => {
-    'POE'        => 1.007,
-    'Net::DNS'   => 0.59,
-    'Test::More' => 0,
+    'POE'               => 1.007,
+    'Net::DNS'          => 0.59,
+    'Test::More'        => 0,
+		'Test::NoWarnings'  => 0.084,
   },
   META_ADD     => {
     resources  => {

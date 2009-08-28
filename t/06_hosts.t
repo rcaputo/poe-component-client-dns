@@ -8,7 +8,8 @@ use warnings;
 use strict;
 sub POE::Kernel::ASSERT_DEFAULT () { 1 }
 use POE qw(Component::Client::DNS);
-use Test::More tests => 4;
+use Test::More tests => 5;
+use Test::NoWarnings;
 
 require Net::DNS;
 my $can_resolve = Net::DNS::Resolver->new->search("poe.perl.org");
@@ -100,7 +101,7 @@ sub response_hosts_match_v6 {
   my $response = $_[ARG0];
   my $address = aaaa_data($response);
   ok(
-    $address eq "0:0:0:0:0:0:0:1",
+    ($address eq "0:0:0:0:0:0:0:1" or $address eq "::1"),
     "ipv6 lookup when hosts file matches ($address)"
   );
 

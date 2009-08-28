@@ -7,7 +7,8 @@
 use strict;
 sub POE::Kernel::ASSERT_DEFAULT () { 1 }
 use POE qw(Component::Client::DNS);
-use Test::More tests => 4;
+use Test::More tests => 5;
+use Test::NoWarnings;
 
 my $resolver = POE::Component::Client::DNS->spawn(
   Alias   => 'named',
