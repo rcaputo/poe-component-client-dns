@@ -1,5 +1,4 @@
 #!/usr/bin/perl
-# $Id$
 
 use ExtUtils::MakeMaker;
 
@@ -11,8 +10,7 @@ WriteMakefile(
   AUTHOR       => 'Rocco Caputo <rcaputo@cpan.org>',
   ABSTRACT     => 'Non-blocking/concurrent DNS queries using Net::DNS and POE',
   LICENSE      => 'perl',
-  VERSION_FROM => 'DNS.pm',
-  PM           => { 'DNS.pm' => '$(INST_LIBDIR)/DNS.pm' },
+  VERSION_FROM => 'lib/POE/Component/Client/DNS.pm',
   PREREQ_PM    => {
     'POE'               => 1.007,
     'Net::DNS'          => 0.59,
@@ -22,14 +20,14 @@ WriteMakefile(
   META_ADD     => {
     resources  => {
       license    => 'http://dev.perl.org/licenses/',
-      repository => 'http://thirdlobe.com/svn/poco-client-dns/trunk'
+      repository => 'http://github.com/rcaputo/poe-component-client-dns',
     },
   },
   dist         => {
     COMPRESS   => 'gzip -9f',
     SUFFIX     => 'gz',
     PREOP      => (
-      'svn-log.perl | tee ./$(DISTNAME)-$(VERSION)/CHANGES > ./CHANGES'
+      'git-log.pl | tee ./$(DISTNAME)-$(VERSION)/CHANGES > ./CHANGES'
     ),
   },
 );

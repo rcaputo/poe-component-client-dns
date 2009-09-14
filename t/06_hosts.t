@@ -1,5 +1,4 @@
 #!/usr/bin/perl
-# $Id$
 # vim: filetype=perl
 
 # Test the hosts file stuff.

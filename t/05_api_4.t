@@ -1,5 +1,4 @@
 #!/usr/bin/perl -w
-# $Id$
 # vim: filetype=perl
 
 # Test the version 3 API.

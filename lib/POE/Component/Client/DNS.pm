@@ -1,4 +1,3 @@
-# $Id$
 # License and documentation are after __END__.
 # vim: ts=2 sw=2 expandtab
 
@@ -773,7 +772,7 @@ https://rt.cpan.org/Dist/Display.html?Queue=POE-Component-Client-DNS
 
 =head1 REPOSITORY
 
-http://thirdlobe.com/svn/poco-client-dns/
+http://github.com/rcaputo/poe-component-client-dns
 
 =head1 OTHER RESOURCES
 
