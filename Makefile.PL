@@ -12,7 +12,7 @@ WriteMakefile(
   LICENSE      => 'perl',
   VERSION_FROM => 'lib/POE/Component/Client/DNS.pm',
   PREREQ_PM    => {
-    'POE'               => 1.007,
+    'POE'               => 1.280,
     'Net::DNS'          => 0.59,
     'Test::More'        => 0,
 		'Test::NoWarnings'  => 0.084,
