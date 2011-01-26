@@ -556,7 +556,7 @@ __END__
 
 =head1 NAME
 
-POE::Component::Client::DNS - non-blocking, concurrent DNS requests
+POE::Component::Client::DNS - non-blocking, parallel DNS client
 
 =head1 SYNOPSIS
 
@@ -602,9 +602,12 @@ POE::Component::Client::DNS - non-blocking, concurrent DNS requests
 
 =head1 DESCRIPTION
 
-POE::Component::Client::DNS provides a facility for non-blocking,
-concurrent DNS requests.  Using POE, it allows other tasks to run
-while waiting for name servers to respond.
+POE::Component::Client::DNS provides non-blocking, parallel DNS
+requests via Net::DNS.  Using POE, it allows other tasks to run while
+waiting for name servers to respond.
+
+For simple name resolution, including smart handling of IPv6 names,
+please see L<POE::Component::Resolver> instead.
 
 =head1 PUBLIC METHODS
 
@@ -613,14 +616,14 @@ while waiting for name servers to respond.
 =item spawn
 
 A program must spawn at least one POE::Component::Client::DNS instance
-before it can perform background DNS lookups.  Each instance
-represents a connection to a name server, or a pool of them.  If a
-program only needs to request DNS lookups from one server, then you
-only need one POE::Component::Client::DNS instance.
+before it can perform background DNS requests.  Each instance
+represents a connection to one or more name servers.  If a program
+only needs to request DNS requests from one server, then you only need
+one POE::Component::Client::DNS instance.
 
 As of version 0.98 you can override the default timeout per request.
-From this point forward there is no need to spawn multiple instances o
-affect different timeouts for each request.
+From this point forward there is no need to spawn multiple instances
+to affect different timeouts for each request.
 
 PoCo::Client::DNS's C<spawn> method takes a few named parameters:
 
@@ -743,6 +746,9 @@ only valid if "response" is undefined.
 
 L<POE> - POE::Component::Client::DNS builds heavily on POE.
 
+L<POE::Component::Resolver> - A system name resolver, including IPv6
+support and whatever else your system supports.
+
 L<Net::DNS> - This module uses Net::DNS internally.
 
 L<Net::DNS::Packet> - Responses are returned as Net::DNS::Packet
@@ -765,6 +771,12 @@ warnings will persist until April 2005.
 As of April 2005 the mandatory warnings will be upgraded to mandatory
 errors.  Support for the deprecated interfaces will be removed
 entirely.
+
+As of late January 2011, POE::Component::Resolver provides basic
+system resolver support, including IPv6 and mDNS if your resolver's
+configured ot use it.  The use of POE::Component::Client::DNS for
+basic resolution is deprecated, however it's still the best option for
+actual DNS server requests.
 
 =head1 BUG TRACKER
 
