@@ -5,9 +5,6 @@ package POE::Component::Client::DNS;
 
 use strict;
 
-use vars qw($VERSION);
-$VERSION = '1.051';
-
 use Carp qw(croak);
 
 use Socket qw(unpack_sockaddr_in inet_ntoa);
@@ -22,18 +19,18 @@ my $global_hosts_file;
 
 # Object fields.  "SF" stands for "self".
 
-sub SF_ALIAS       () { 0 }
-sub SF_TIMEOUT     () { 1 }
-sub SF_NAMESERVERS () { 2 }
-sub SF_RESOLVER    () { 3 }
-sub SF_HOSTS_FILE  () { 4 }
-sub SF_HOSTS_MTIME () { 5 }
-sub SF_HOSTS_CTIME () { 6 }
-sub SF_HOSTS_INODE () { 7 }
-sub SF_HOSTS_CACHE () { 8 }
-sub SF_HOSTS_BYTES () { 9 }
-sub SF_SHUTDOWN    () { 10 }
-sub SF_REQ_BY_SOCK () { 11 }
+use constant SF_ALIAS       => 0;
+use constant SF_TIMEOUT     => 1;
+use constant SF_NAMESERVERS => 2;
+use constant SF_RESOLVER    => 3;
+use constant SF_HOSTS_FILE  => 4;
+use constant SF_HOSTS_MTIME => 5;
+use constant SF_HOSTS_CTIME => 6;
+use constant SF_HOSTS_INODE => 7;
+use constant SF_HOSTS_CACHE => 8;
+use constant SF_HOSTS_BYTES => 9;
+use constant SF_SHUTDOWN    => 10;
+use constant SF_REQ_BY_SOCK => 11;
 
 # Spawn a new PoCo::Client::DNS session.  This basically is a
 # constructor, but it isn't named "new" because it doesn't create a
@@ -193,7 +190,7 @@ sub _dns_resolve {
   # more often than never checking at all.
 
   if (($type eq "A" or $type eq "AAAA") and $class eq "IN") {
-    my $address = $self->check_hosts_file($host, $type);
+    my $address = $self->_check_hosts_file($host, $type);
 
     if (defined $address) {
       # Pretend the request went through a name server.
@@ -442,7 +439,7 @@ sub _send_response {
 
 ### NOT A POE EVENT HANDLER
 
-sub check_hosts_file {
+sub _check_hosts_file {
   my ($self, $host, $type) = @_;
 
   # Use the hosts file that was specified, or find one.
@@ -715,6 +712,8 @@ interrogated or modified.  See L<Net::DNS::Resolver> for options.
 Set the resolver to check on nonstandard port 1153:
 
   $poco_client_dns->resolver()->port(1153);
+
+=back
 
 =head1 RESPONSE MESSAGES
 
