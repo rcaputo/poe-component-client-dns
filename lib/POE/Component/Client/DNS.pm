@@ -711,7 +711,7 @@ interrogated or modified.  See L<Net::DNS::Resolver> for options.
 
 Set the resolver to check on nonstandard port 1153:
 
-  $poco_client_dns->resolver()->port(1153);
+  $poco_client_dns->get_resolver()->port(1153);
 
 =back
 
