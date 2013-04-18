@@ -6,7 +6,7 @@
 use strict;
 sub POE::Kernel::ASSERT_DEFAULT () { 1 }
 use POE qw(Component::Client::DNS);
-use Test::More tests => 5;
+use Test::More tests => 6;
 use Test::NoWarnings;
 
 my $resolver = POE::Component::Client::DNS->spawn(
@@ -59,6 +59,13 @@ sub start_tests {
     host    => "google.com",
     context => $request++,
     timeout => 0.001,
+  );
+
+  $resolver->resolve(
+    event   => "response",
+    host    => "google.com",
+    context => $request++,
+    nameservers => ['8.8.8.8', '8.8.4.4'],
   );
 }
 

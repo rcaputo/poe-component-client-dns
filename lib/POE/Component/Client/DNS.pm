@@ -140,6 +140,8 @@ sub _dns_resolve {
 
   my ($api_version, $context, $timeout);
 
+  my @nameservers = $self->[SF_RESOLVER]->nameservers();
+
   # Version 3 API.  Pass the entire request as a hash.
   if (ref($event) eq 'HASH') {
     my %args = %$event;
@@ -157,6 +159,8 @@ sub _dns_resolve {
     die "Must include a 'context' $debug_info" unless $context;
 
     $timeout = delete $args{timeout};
+
+    @nameservers = @{delete $args{nameservers}} if defined $args{nameservers};
 
     $host = delete $args{host};
     die "Must include a 'host' $debug_info" unless $host;
@@ -242,7 +246,7 @@ sub _dns_resolve {
       started   => $now,
       ends      => $now + $timeout,
       api_ver   => $api_version,
-      nameservers => [ $self->[SF_RESOLVER]->nameservers() ],
+      nameservers => [ @nameservers ],
     }
   );
 }
@@ -264,11 +268,14 @@ sub _dns_do_request {
   }
 
   # Send the request.
+  my @default_nameservers = $self->[SF_RESOLVER]->nameservers();
+  $self->[SF_RESOLVER]->nameservers(@{$req->{nameservers}});
   my $resolver_socket = $self->[SF_RESOLVER]->bgsend(
     $req->{host},
     $req->{type},
     $req->{class}
   );
+  $self->[SF_RESOLVER]->nameservers(@default_nameservers);
 
   # The request failed?  Attempt to retry.
 
@@ -670,12 +677,13 @@ it returns undef if a resolver must be consulted asynchronously.
 Requests are passed as a list of named fields.
 
   $resolver->resolve(
-    class   => $dns_record_class,  # defaults to "IN"
-    type    => $dns_record_type,   # defaults to "A"
-    host    => $request_host,      # required
-    context => $request_context,   # required
-    event   => $response_event,    # required
-    timeout => $request_timeout,   # defaults to spawn()'s Timeout
+    class       => $dns_record_class,  # defaults to "IN"
+    type        => $dns_record_type,   # defaults to "A"
+    host        => $request_host,      # required
+    context     => $request_context,   # required
+    event       => $response_event,    # required
+    timeout     => $request_timeout,   # defaults to spawn()'s Timeout
+    nameservers => $nameservers,       # defaults to $resolver's Nameservers
   );
 
 The "class" and "type" fields specify what kind of information to
