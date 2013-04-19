@@ -57,6 +57,9 @@ sub spawn {
     "$type doesn't know these parameters: ", join(', ', sort keys %params)
   ) if scalar keys %params;
 
+  # TODO - SF_NAMESERVERS isn't used right now.  It exists for future
+  # expansion.
+
   my $self = bless [
     $alias,                     # SF_ALIAS
     $timeout,                   # SF_TIMEOUT
@@ -140,7 +143,7 @@ sub _dns_resolve {
 
   my ($api_version, $context, $timeout);
 
-  my @nameservers = $self->[SF_RESOLVER]->nameservers();
+  my @nameservers;
 
   # Version 3 API.  Pass the entire request as a hash.
   if (ref($event) eq 'HASH') {
@@ -160,7 +163,7 @@ sub _dns_resolve {
 
     $timeout = delete $args{timeout};
 
-    @nameservers = @{delete $args{nameservers}} if defined $args{nameservers};
+    @nameservers = @{delete $args{nameservers}} if $args{nameservers};
 
     $host = delete $args{host};
     die "Must include a 'host' $debug_info" unless $host;
@@ -182,6 +185,8 @@ sub _dns_resolve {
     $context     = [ ];
     $api_version = 1;
   }
+
+  @nameservers = @{ $self->[SF_NAMESERVERS] } unless @nameservers;
 
   # Default the request's timeout.
   $timeout = $self->[SF_TIMEOUT] unless $timeout;
@@ -237,16 +242,16 @@ sub _dns_resolve {
   $kernel->call(
     $self->[SF_ALIAS],
     send_request => {
-      sender    => $sender,
-      event     => $event,
-      host      => $host,
-      type      => $type,
-      class     => $class,
-      context   => $context,
-      started   => $now,
-      ends      => $now + $timeout,
-      api_ver   => $api_version,
-      nameservers => [ @nameservers ],
+      sender      => $sender,
+      event       => $event,
+      host        => $host,
+      type        => $type,
+      class       => $class,
+      context     => $context,
+      started     => $now,
+      ends        => $now + $timeout,
+      api_ver     => $api_version,
+      nameservers => \@nameservers,
     }
   );
 }
@@ -268,14 +273,15 @@ sub _dns_do_request {
   }
 
   # Send the request.
-  my @default_nameservers = $self->[SF_RESOLVER]->nameservers();
-  $self->[SF_RESOLVER]->nameservers(@{$req->{nameservers}});
+
+  $self->[SF_RESOLVER]->nameservers(
+    @{ $req->{nameservers} || $self->[SF_NAMESERVERS] }
+  );
   my $resolver_socket = $self->[SF_RESOLVER]->bgsend(
     $req->{host},
     $req->{type},
     $req->{class}
   );
-  $self->[SF_RESOLVER]->nameservers(@default_nameservers);
 
   # The request failed?  Attempt to retry.
 
@@ -328,18 +334,18 @@ sub _dns_default {
 
   # The nameserver we tried has failed us.  If it's the top
   # nameserver in Net::DNS's list, then send it to the back and retry.
+  # TODO - What happens if they all fail forever?
 
-  my @nameservers = $self->[SF_RESOLVER]->nameservers();
-  if ($nameservers[0] eq $req->{nameservers}[0]) {
-    push @nameservers, shift(@nameservers);
-    $self->[SF_RESOLVER]->nameservers(@nameservers);
-    $req->{nameservers} = \@nameservers;
-  }
+  my @nameservers = @{ $req->{nameservers} };
+  push @nameservers, shift(@nameservers);
+  $self->[SF_RESOLVER]->nameservers(@nameservers);
+  $req->{nameservers} = \@nameservers;
 
   # Retry.
   $kernel->yield(send_request => $req);
 
   # Don't accidentally handle signals.
+  # Only meaningful for old POEs.
   return;
 }
 
