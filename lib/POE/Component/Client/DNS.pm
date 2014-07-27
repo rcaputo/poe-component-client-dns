@@ -472,6 +472,10 @@ sub _check_hosts_file {
         "/etc/hosts",
       );
 
+      if ( $^O eq 'android' ) {
+        push @candidates, "/system/etc/hosts";
+      }
+      
       if ($^O eq "MSWin32" or $^O eq "Cygwin") {
         my $sys_dir;
         $sys_dir = $ENV{SystemRoot} || "c:\\Windows";
