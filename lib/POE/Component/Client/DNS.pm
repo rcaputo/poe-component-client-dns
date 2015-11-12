@@ -277,7 +277,7 @@ sub _dns_do_request {
   $self->[SF_RESOLVER]->nameservers(
     @{ $req->{nameservers} || $self->[SF_NAMESERVERS] }
   );
-  my $resolver_socket = $self->[SF_RESOLVER]->bgsend(
+  my $resolver_ref = $self->[SF_RESOLVER]->bgsend(
     $req->{host},
     $req->{type},
     $req->{class}
@@ -285,11 +285,22 @@ sub _dns_do_request {
 
   # The request failed?  Attempt to retry.
 
-  unless ($resolver_socket) {
+  unless ($resolver_ref) {
     $remaining = 1 if $remaining > 1;
     $kernel->delay_add(send_request => $remaining, $req);
     return;
   }
+
+  my $resolver_socket;
+
+  if ( ref( $resolver_ref ) eq 'IO::Select' ) {
+    ($resolver_socket) = [ $resolver_ref->handles ]->[0][0];
+  }
+  else {
+    $resolver_socket = $resolver_ref;
+  }
+
+  $req->{RES_REF} = $resolver_ref;
 
   # Set a timeout for the request, and watch the response socket for
   # activity.
@@ -362,8 +373,10 @@ sub _dns_response {
   $kernel->delay($socket);
   $kernel->select_read($socket);
 
+  my $handle = delete $req->{RES_REF};
+
   # Read the DNS response.
-  my $packet = $self->[SF_RESOLVER]->bgread($socket);
+  my $packet = $self->[SF_RESOLVER]->bgread($handle);
 
   # Set the packet's answerfrom field, if the packet was received ok
   # and an answerfrom isn't already included.  This uses the
